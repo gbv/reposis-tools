@@ -228,6 +228,9 @@ public class PicaMyCoReConversionService {
 
                 String relatedPPN = tempPpnAttr.getValue();
                 relatedItem.removeAttribute(tempPpnAttr); // Remove temporary attribute
+                // Explicitly remove the namespace declaration as well
+                relatedItem.removeNamespaceDeclaration(TEMP_NS);
+                log.trace("Pass 2: Removed temp:relatedPPN attribute and temp namespace from relatedItem for PPN {}", relatedPPN);
 
                 // Find the MyCoRe ID for the related PPN
                 String relatedMyCoReId = idMapper.getProperty(relatedPPN);
