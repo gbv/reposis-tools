@@ -7,9 +7,10 @@ import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamWriter;
+import javax.xml.stream.*;
+import javax.xml.transform.*;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.stream.StreamSource;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -124,14 +125,17 @@ public class ToolsShell {
 
         System.out.println("Successfully parsed " + records.size() + " records.");
 
-        // Write PICA XML Output
-        System.out.println("Writing PICA XML to: " + outputPath);
+        // Write PICA XML Output (first to string, then format)
+        System.out.println("Generating PICA XML...");
         XMLOutputFactory factory = XMLOutputFactory.newInstance();
-        try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(outputPath))) {
-            XMLStreamWriter writer = factory.createXMLStreamWriter(out, StandardCharsets.UTF_8.name());
+        // Requires factory.setProperty("javax.xml.stream.isRepairingNamespaces", true); for automatic prefixing if needed, but we set default NS.
+        StringWriter stringWriter = new StringWriter();
+        XMLStreamWriter writer = null;
+        try {
+            writer = factory.createXMLStreamWriter(stringWriter);
 
             writer.writeStartDocument(StandardCharsets.UTF_8.name(), "1.0");
-            writer.writeStartElement("collection");
+            writer.writeStartElement("collection"); // No prefix needed due to default namespace
             writer.writeDefaultNamespace(PICA_XML_NS);
 
             for (PicaRecord record : records) {
@@ -160,14 +164,53 @@ public class ToolsShell {
 
             writer.writeEndElement(); // collection
             writer.writeEndDocument();
+            writer.writeEndElement(); // collection
+            writer.writeEndDocument();
             writer.flush();
-            writer.close();
-            System.out.println("Successfully wrote PICA XML.");
+            writer.close(); // Close writer to finalize stringWriter
 
+            // Now format the XML string and write to file
+            System.out.println("Formatting and writing PICA XML to: " + outputPath);
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            // Prevent XXE attacks by explicitly disabling external DTDs/entities
+            try {
+                 transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            } catch (TransformerConfigurationException e) {
+                 System.err.println("Warning: Could not set secure processing feature for TransformerFactory: " + e.getMessage());
+                 // Log or handle appropriately if security is critical
+            }
+
+            Transformer transformer = transformerFactory.newTransformer();
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            // Standard JDK indent amount is usually 2 spaces, adjust if needed:
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+            transformer.setOutputProperty(OutputKeys.ENCODING, StandardCharsets.UTF_8.name());
+            // transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes"); // Keep the declaration
+
+            Source xmlInput = new StreamSource(new StringReader(stringWriter.toString()));
+            Result xmlOutput = new StreamResult(new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputPath)), StandardCharsets.UTF_8));
+
+            transformer.transform(xmlInput, xmlOutput);
+
+            System.out.println("Successfully wrote formatted PICA XML.");
+
+        } catch (XMLStreamException e) {
+            System.err.println("Error generating XML structure: " + e.getMessage());
+        } catch (TransformerConfigurationException e) {
+             System.err.println("Error configuring XML transformer: " + e.getMessage());
+        } catch (TransformerException e) {
+            System.err.println("Error transforming/writing formatted XML: " + e.getMessage());
         } catch (IOException e) {
             System.err.println("Error writing output file: " + e.getMessage());
-        } catch (XMLStreamException e) {
-            System.err.println("Error writing XML: " + e.getMessage());
+        } finally {
+             if(writer != null) {
+                 try {
+                     // Ensure writer is closed even if exceptions occur before explicit close
+                     writer.close();
+                 } catch (XMLStreamException e) {
+                     // Ignore closing errors if already handling another exception
+                 }
+             }
         }
     }
 }
