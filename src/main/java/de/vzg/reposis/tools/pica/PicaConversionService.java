@@ -68,14 +68,14 @@ public class PicaConversionService {
 
             // Start a new PicaRecord for this block
             currentRecord = new PicaRecord();
-            int lineNumberInRecord = 0;
+            // int lineNumberInRecord = 0; // REMOVED
 
             // Split the record block into lines based on newline character
             // Use the original recordBlock here
             String[] lines = recordBlock.split("\n");
 
             for (String line : lines) {
-                lineNumberInRecord++;
+                // lineNumberInRecord++; // REMOVED
 
                 // DO NOT trim the line yet, as trim() removes the FIELD_INTRODUCER (\u001E)
                 if (line == null || line.isEmpty()) { // Check for null or truly empty lines first
@@ -95,7 +95,7 @@ public class PicaConversionService {
                     // We might still want to skip completely blank lines *after* the introducer explicitly?
                     // Let's rely on the regex match failure for now.
                     // if (fieldData.isEmpty()) { // This check is less useful without trim()
-                    //      System.out.println("Info: Skipping line with only Field Introducer (Record #" + recordNumber + ", Line " + lineNumberInRecord + ")");
+                    //      System.out.println("Info: Skipping line with only Field Introducer (Record #" + recordNumber + ")"); // Line number removed
                     //      continue;
                     // }
 
@@ -137,7 +137,7 @@ public class PicaConversionService {
                         // Split value part into subfields using SUBFIELD_SEPARATOR (\u001F)
                         // Ensure valuePart is not null before splitting
                         if (valuePart == null) {
-                             System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + ": Parsed field successfully but valuePart is unexpectedly null. FieldData: '" + fieldData + "'");
+                             System.err.println("Warning: Record #" + recordNumber + ": Parsed field successfully but valuePart is unexpectedly null. FieldData: '" + fieldData + "'"); // Line number removed
                              valuePart = ""; // Avoid NullPointerException, treat as empty value
                         }
                         // We do NOT trim subfield parts here, as leading/trailing spaces might be significant within values
@@ -169,14 +169,14 @@ public class PicaConversionService {
                             } else if (!part.isEmpty()) {
                                 // This case might occur if there are consecutive separators, e.g., "\u001F\u001F"
                                 // or if the value part ends with a separator.
-                                System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + ": Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'");
+                                System.err.println("Warning: Record #" + recordNumber + ": Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'"); // Line number removed
                             }
                             // If part is completely empty (e.g., from splitting ""), do nothing.
                         }
                         currentRecord.addField(field);
                     } else {
                         // Parsing with string manipulation failed
-                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed using string manipulation: '" + fieldData + "'");
+                        System.err.println("Warning: Record #" + recordNumber + " started with Field Introducer but could not be parsed using string manipulation: '" + fieldData + "'"); // Line number removed
                     }
                 } else {
                     // Line does not start with the expected Field Introducer.
@@ -188,11 +188,11 @@ public class PicaConversionService {
                     }
                     // Skip comment lines starting with #, allowing for leading whitespace
                     if (line.stripLeading().startsWith("#")) { // Use stripLeading() before checking for comment
-                        System.out.println("Info: Skipping comment (Record #" + recordNumber + ", Line " + lineNumberInRecord + "): " + line); // Log original line
+                        System.out.println("Info: Skipping comment (Record #" + recordNumber + "): " + line); // Line number removed, Log original line
                         continue;
                     }
                     // If it's not blank, not a comment, and didn't start with \u001E, it's an error.
-                    System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " does not start with the PICA Field Introducer (\\u001E): '" + line + "'"); // Log original line
+                    System.err.println("Warning: Record #" + recordNumber + " does not start with the PICA Field Introducer (\\u001E): '" + line + "'"); // Line number removed, Log original line
                 }
             } // End of loop over lines in record
 
