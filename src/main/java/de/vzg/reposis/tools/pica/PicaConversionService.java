@@ -22,9 +22,11 @@ public class PicaConversionService {
     // TAG: 4 chars (e.g., 003@, 021A)
     // OCCURRENCE: Optional 2 digits (e.g., /00, /01)
     // VALUE: Remaining part, potentially containing subfields
+    // Example line after stripping leading \u001E: "003@ $012345X" or "021A/01 $aEin Buch$hzum Lesen"
     private static final Pattern FIELD_PATTERN = Pattern.compile("^([a-zA-Z0-9@]{4})(?:/(\\d{2}))?\\s+(.*)$");
     private static final char SUBFIELD_SEPARATOR = '\u001F'; // ASCII 31 (US - Unit Separator)
-    private static final char LINE_TERMINATOR = '\u001E'; // ASCII 30 (RS - Record Separator)
+    private static final char FIELD_INTRODUCER = '\u001E'; // ASCII 30 (RS - Record Separator) - Introduces a field line
+    private static final String RECORD_SEPARATOR = "\u001D\n"; // ASCII 29 (GS - Group Separator) + Newline - Separates records
     private static final String PICA_XML_NS = "info:srw/schema/5/picaXML-v1.0";
 
     public void convertPicaFile(Path inputPath, Path outputPath) throws IOException, XMLStreamException, TransformerException {
@@ -43,99 +45,99 @@ public class PicaConversionService {
         List<PicaRecord> records = new ArrayList<>();
         PicaRecord currentRecord = null; // Initialize as null, create when first field or 003@ is found
 
-        System.out.println("Starting PICA+ parsing from: " + inputPath);
+        System.out.println("Starting PICA Importformat parsing from: " + inputPath);
 
         // Read the entire file content
         String content = Files.readString(inputPath, StandardCharsets.UTF_8);
 
-        // Split the content based ONLY on the LINE_TERMINATOR
-        // The -1 limit ensures trailing empty strings are kept if needed, though we trim later.
-        String[] fieldLines = content.split(String.valueOf(LINE_TERMINATOR), -1);
+        // Split the content into records based on RECORD_SEPARATOR (\u001D\n)
+        String[] recordBlocks = content.split(RECORD_SEPARATOR);
 
-        int effectiveFieldNumber = 0; // To track the logical field number for warnings
+        int recordNumber = 0;
+        for (String recordBlock : recordBlocks) {
+            recordNumber++;
+            String trimmedRecordBlock = recordBlock.trim(); // Trim whitespace around the record block
 
-        for (String segment : fieldLines) {
-            String trimmedLine = segment.trim(); // Trim whitespace from the potential field line
-
-            // Skip empty lines resulting from split (e.g., file starting/ending with \u001E)
-            // or lines that become empty after trimming.
-            if (trimmedLine.isEmpty()) {
-                continue; // Skip processing this empty segment
-            }
-
-            // Increment field number only for non-empty, non-comment lines processed
-            effectiveFieldNumber++;
-
-            // Skip comment/metadata lines starting with ##
-            if (trimmedLine.startsWith("##")) {
-                System.out.println("Info: Skipping metadata/comment (Field " + effectiveFieldNumber + "): " + trimmedLine);
+            // Skip empty blocks resulting from split (e.g., file starting/ending with separator)
+            if (trimmedRecordBlock.isEmpty()) {
+                System.out.println("Info: Skipping empty record block (Record #" + recordNumber + ")");
                 continue;
             }
 
-            // Now, parse the trimmed line which should represent a single PICA field
-            Matcher matcher = FIELD_PATTERN.matcher(trimmedLine);
-            if (matcher.matches()) {
-                String tag = matcher.group(1);
-                String occurrence = matcher.group(2); // Might be null
-                String valuePart = matcher.group(3); // Includes all chars until end, incl. LSEP etc.
+            // Start a new PicaRecord for this block
+            currentRecord = new PicaRecord();
+            int lineNumberInRecord = 0;
 
-                // Check for new record start (e.g., based on 003@ tag)
-                if ("003@".equals(tag)) {
-                    // If there's a previous record with fields, add it to the list
-                    if (currentRecord != null && !currentRecord.getFields().isEmpty()) {
-                        records.add(currentRecord);
-                    }
-                    // Start a new record
-                    currentRecord = new PicaRecord();
-                } else if (currentRecord == null) {
-                    // If we encounter a non-003@ field and have no current record,
-                    // create one, but maybe warn that the file didn't start as expected.
-                    System.err.println("Warning: Field " + effectiveFieldNumber + " (Tag: " + tag + ") encountered before the first record-starting field (e.g., 003@). Starting a new record implicitly.");
-                    currentRecord = new PicaRecord();
+            // Split the record block into lines based on newline character
+            String[] lines = trimmedRecordBlock.split("\n");
+
+            for (String line : lines) {
+                lineNumberInRecord++;
+                String trimmedLine = line.trim(); // Trim leading/trailing whitespace from the line
+
+                // Skip empty lines within a record block
+                if (trimmedLine.isEmpty()) {
+                    continue;
                 }
 
-                // If currentRecord is still null here, something is wrong (should have been created)
-                // This check prevents NullPointerException if the logic above fails.
-                if (currentRecord == null) {
-                     System.err.println("Error: Internal state error - currentRecord is null (Field " + effectiveFieldNumber + "). Skipping field.");
-                     continue; // Skip this field
+                // Skip comment lines starting with #
+                if (trimmedLine.startsWith("#")) {
+                    System.out.println("Info: Skipping comment (Record #" + recordNumber + ", Line " + lineNumberInRecord + "): " + trimmedLine);
+                    continue;
                 }
 
-                PicaField field = new PicaField(tag, occurrence);
+                // Check if the line starts with the FIELD_INTRODUCER (\u001E)
+                if (trimmedLine.length() > 0 && trimmedLine.charAt(0) == FIELD_INTRODUCER) {
+                    // Remove the introducer character before parsing
+                    String fieldData = trimmedLine.substring(1);
 
-                // Split value part into subfields using SUBFIELD_SEPARATOR
-                // The split preserves LSEP etc. within the resulting parts
-                String[] subfieldParts = valuePart.split(String.valueOf(SUBFIELD_SEPARATOR));
+                    // Now, parse the remaining part which should be the PICA field
+                    Matcher matcher = FIELD_PATTERN.matcher(fieldData);
+                    if (matcher.matches()) {
+                        String tag = matcher.group(1);
+                        String occurrence = matcher.group(2); // Might be null
+                        String valuePart = matcher.group(3); // Includes subfields separated by \u001F
 
-                for (String part : subfieldParts) {
-                    // Expecting format like "aValue" or "9Value" after splitting
-                    if (part.length() >= 1) { // Need at least one character for the code
-                        char subfieldCode = part.charAt(0);
-                        String subfieldValue = "";
-                        if (part.length() > 1) {
-                            // Get the rest of the string as value
-                            subfieldValue = part.substring(1);
+                        PicaField field = new PicaField(tag, occurrence);
+
+                        // Split value part into subfields using SUBFIELD_SEPARATOR (\u001F)
+                        String[] subfieldParts = valuePart.split(String.valueOf(SUBFIELD_SEPARATOR));
+
+                        for (String part : subfieldParts) {
+                            // Expecting format like "aValue" or "9Value" after splitting
+                            if (part.length() >= 1) { // Need at least one character for the code
+                                char subfieldCode = part.charAt(0);
+                                String subfieldValue = "";
+                                if (part.length() > 1) {
+                                    // Get the rest of the string as value
+                                    subfieldValue = part.substring(1);
+                                }
+                                field.addSubfield(new PicaSubfield(subfieldCode, subfieldValue));
+                            } else if (!part.isEmpty()) {
+                                // This case might occur if there are consecutive separators, e.g., "\u001F\u001F"
+                                // or if the value part ends with a separator.
+                                System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + ": Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'");
+                            }
+                            // If part is completely empty (e.g., from splitting ""), do nothing.
                         }
-                        // Add the extracted subfield (subfieldValue now contains original chars like LSEP)
-                        field.addSubfield(new PicaSubfield(subfieldCode, subfieldValue));
-                    } else if (!part.isEmpty()) {
-                        // This case might occur if there are consecutive separators, e.g., "\u001F\u001F"
-                        // or if the value part ends with a separator.
-                        System.err.println("Warning: Field " + effectiveFieldNumber + ": Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'");
+                        currentRecord.addField(field);
+                    } else {
+                        // The line started with \u001E but didn't match the field pattern
+                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed as a PICA field: '" + fieldData + "'");
                     }
-                    // If part is completely empty (e.g., from splitting ""), do nothing.
+                } else {
+                    // Line does not start with the expected Field Introducer
+                    System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " does not start with the PICA Field Introducer (\\u001E): '" + trimmedLine + "'");
                 }
-                currentRecord.addField(field);
-            } else {
-                // Use the field number in the warning here, as that's what failed matching
-                System.err.println("Warning: Field " + effectiveFieldNumber + " could not be parsed as a PICA field: '" + trimmedLine + "'");
-            }
-        } // End of loop over fieldLines
+            } // End of loop over lines in record
 
-        // Add the last record if it exists and has fields
-        if (currentRecord != null && !currentRecord.getFields().isEmpty()) {
-            records.add(currentRecord);
-        }
+            // Add the parsed record if it contains any fields
+            if (!currentRecord.getFields().isEmpty()) {
+                records.add(currentRecord);
+            } else {
+                 System.out.println("Info: Record #" + recordNumber + " resulted in an empty PicaRecord (no valid fields found). Skipping.");
+            }
+        } // End of loop over recordBlocks
 
         return records;
     }

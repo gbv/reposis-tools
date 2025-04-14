@@ -21,9 +21,9 @@ public class ToolsShell {
         this.picaConversionService = picaConversionService;
     }
 
-    @ShellMethod(key = "convert-pica", value = "Converts PICA+ Importformat file (lines end with \\u001E, subfields with \\u001F) to PICA XML.")
+    @ShellMethod(key = "convert-pica", value = "Converts PICA Importformat file (records separated by \\u001D\\n, fields introduced by \\u001E, subfields by \\u001F) to PICA XML.")
     public void convertPica(
-            @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA+ Importformat file.") String input,
+            @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA Importformat file.") String input,
             @ShellOption(value = {"-o", "--output"}, help = "Path to the output PICA XML file.") String output) {
 
         Path inputPath = Paths.get(input);
