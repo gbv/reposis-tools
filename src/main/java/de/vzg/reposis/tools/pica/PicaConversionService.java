@@ -12,18 +12,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+// import java.util.regex.Matcher; // Removed
+// import java.util.regex.Pattern; // Removed
 
 @Service
 public class PicaConversionService {
 
-    // Regex to parse PICA+ field line: TAG[/OCCURRENCE] VALUE
+    // Format description for PICA+ field line: TAG[/OCCURRENCE] VALUE
     // TAG: 4 chars (e.g., 003@, 021A)
-    // OCCURRENCE: Optional 2 digits (e.g., /00, /01)
-    // VALUE: Remaining part, potentially containing subfields
-    // Example line after stripping leading \u001E: "003@ $012345X" or "021A/01 $aEin Buch$hzum Lesen"
-    private static final Pattern FIELD_PATTERN = Pattern.compile("^([a-zA-Z0-9@]{4})(?:/(\\d{2}))?\\s+(.*)$");
+    // OCCURRENCE: Optional 2 digits preceded by '/' (e.g., /00, /01)
+    // VALUE: Remaining part after the first space, potentially containing subfields
+    // Example line after stripping leading \u001E: "003@ 12345X" or "021A/01 aEin Buch\u001FbZum Lesen"
+    // Note: The space after TAG or OCCURRENCE is the separator to the VALUE part.
+    // private static final Pattern FIELD_PATTERN = Pattern.compile("^([a-zA-Z0-9@]{4})(?:/(\\d{2}))?\\s+(.*)$"); // Removed
     private static final char SUBFIELD_SEPARATOR = '\u001F'; // ASCII 31 (US - Unit Separator)
     private static final char FIELD_INTRODUCER = '\u001E'; // ASCII 30 (RS - Record Separator) - Introduces a field line
     private static final String RECORD_SEPARATOR = "\u001D\n"; // ASCII 29 (GS - Group Separator) + Newline - Separates records
@@ -98,16 +99,47 @@ public class PicaConversionService {
                     //      continue;
                     // }
 
-                    // Now, parse the remaining part which should be the PICA field
-                    Matcher matcher = FIELD_PATTERN.matcher(fieldData);
-                    if (matcher.matches()) {
-                        String tag = matcher.group(1);
-                        String occurrence = matcher.group(2); // Might be null
-                        String valuePart = matcher.group(3); // Includes subfields separated by \u001F
+                    // Now, parse the remaining part which should be the PICA field using string manipulation
+                    String tag = null;
+                    String occurrence = null;
+                    String valuePart = null;
+                    boolean parseSuccess = false;
 
+                    if (fieldData.length() >= 4) { // Need at least 4 chars for the tag
+                        String potentialTag = fieldData.substring(0, 4);
+                        String restOfField = fieldData.substring(4);
+
+                        // Check for occurrence (e.g., "/01")
+                        if (restOfField.startsWith("/") && restOfField.length() >= 4 && Character.isDigit(restOfField.charAt(1)) && Character.isDigit(restOfField.charAt(2))) {
+                            // Check for space after occurrence
+                            if (restOfField.length() > 3 && Character.isWhitespace(restOfField.charAt(3))) {
+                                tag = potentialTag;
+                                occurrence = restOfField.substring(1, 3);
+                                // Value part starts after the space
+                                valuePart = restOfField.substring(4);
+                                parseSuccess = true;
+                            }
+                            // else: Invalid format (no space after occurrence)
+                        } else if (!restOfField.isEmpty() && Character.isWhitespace(restOfField.charAt(0))) {
+                            // No occurrence, check for space after tag
+                            tag = potentialTag;
+                            occurrence = null; // Explicitly null
+                            // Value part starts after the space
+                            valuePart = restOfField.substring(1);
+                            parseSuccess = true;
+                        }
+                        // else: Invalid format (no space after tag/occurrence or malformed occurrence)
+                    }
+
+                    if (parseSuccess) {
                         PicaField field = new PicaField(tag, occurrence);
 
                         // Split value part into subfields using SUBFIELD_SEPARATOR (\u001F)
+                        // Ensure valuePart is not null before splitting
+                        if (valuePart == null) {
+                             System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + ": Parsed field successfully but valuePart is unexpectedly null. FieldData: '" + fieldData + "'");
+                             valuePart = ""; // Avoid NullPointerException, treat as empty value
+                        }
                         // We do NOT trim subfield parts here, as leading/trailing spaces might be significant within values
                         String[] subfieldParts = valuePart.split(String.valueOf(SUBFIELD_SEPARATOR));
 
@@ -143,9 +175,8 @@ public class PicaConversionService {
                         }
                         currentRecord.addField(field);
                     } else {
-                        // The line started with \u001E but didn't match the field pattern.
-                        // Log the original fieldData (without introducer)
-                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed as a PICA field: '" + fieldData + "'");
+                        // Parsing with string manipulation failed
+                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed using string manipulation: '" + fieldData + "'");
                     }
                 } else {
                     // Line does not start with the expected Field Introducer.
