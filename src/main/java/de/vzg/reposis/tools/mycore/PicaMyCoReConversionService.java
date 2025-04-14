@@ -105,7 +105,13 @@ public class PicaMyCoReConversionService {
             }
 
             // Process each record
-            while (reader.hasNext() && isStartElement(reader.peek(), RECORD_ELEMENT)) {
+            while (reader.hasNext()) {
+                // Find the next record start element, skipping whitespace/comments etc.
+                if (!findNextStartElement(reader, RECORD_ELEMENT)) {
+                    log.debug("No more record elements found or end of document reached.");
+                    break; // Exit loop if no more records or end of document
+                }
+                // Now we are positioned at the start of a record element
                 recordCount++;
 
                 // We need to consume the source to extract PPN *and* use it for transformation.
@@ -216,6 +222,30 @@ public class PicaMyCoReConversionService {
     private boolean isStartElement(XMLEvent event, QName name) {
         return event != null && event.isStartElement() && event.asStartElement().getName().equals(name);
     }
+
+    /**
+     * Advances the reader until the next start element with the specified QName is found,
+     * skipping intermediate events like whitespace or comments.
+     *
+     * @param reader The reader to advance.
+     * @param elementName The QName of the start element to find.
+     * @return true if the start element was found, false otherwise (e.g., end of document).
+     * @throws XMLStreamException If an error occurs during reading.
+     */
+    private boolean findNextStartElement(XMLEventReader reader, QName elementName) throws XMLStreamException {
+        while (reader.hasNext()) {
+            XMLEvent event = reader.peek();
+            if (event.isStartElement() && event.asStartElement().getName().equals(elementName)) {
+                return true;
+            }
+            // Consume the event if it's not the one we're looking for
+            reader.nextEvent();
+            // Check for end of document explicitly inside loop if needed, though hasNext() should cover it.
+            if (!reader.hasNext()) return false;
+        }
+        return false;
+    }
+
 
     private String extractPpnAndWriteEvents(XMLEventReader reader, XMLEventWriter writer) throws XMLStreamException {
         String ppn = null;
