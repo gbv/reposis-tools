@@ -1,5 +1,6 @@
 package de.vzg.reposis.tools;
 
+import de.vzg.reposis.tools.mycore.PicaMyCoReConversionService;
 import de.vzg.reposis.tools.pica.PicaConversionService;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
@@ -7,6 +8,7 @@ import org.springframework.shell.standard.ShellOption;
 
 import javax.xml.stream.XMLStreamException;
 import javax.xml.transform.TransformerException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
