@@ -9,6 +9,7 @@ import org.jdom2.filter.Filters;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -18,11 +19,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Service
+public class MyCoReObjectService {
 
-public class MODSUtil {
-
+    // Constants remain static final
     public static final Namespace XLINK_NAMESPACE = Namespace.getNamespace("xlink", "http://www.w3.org/1999/xlink");
-
     public static final Namespace MODS_NAMESPACE = Namespace.getNamespace("mods", "http://www.loc.gov/mods/v3");
 
     public static final String METADATA_XPATH = "/mycoreobject/metadata";
@@ -59,20 +60,19 @@ public class MODSUtil {
 
     private static final List<String> ORDER_LIST = List.of(ORDER);
 
-    public static List<String> getChildren(Document mycoreObject) {
+    // Methods become instance methods (remove static)
+    public List<String> getChildren(Document mycoreObject) {
         XPathExpression<Element> childrenXPath = XPathFactory.instance().compile(CHILDREN_XPATH, Filters.element());
         return childrenXPath.evaluate(mycoreObject).stream()
             .map(child -> child.getAttributeValue("href", XLINK_NAMESPACE))
             .collect(Collectors.toList());
     }
 
-
-
-    public static String getID(Document mycoreObject) {
+    public String getID(Document mycoreObject) {
         return mycoreObject.getRootElement().getAttributeValue("ID");
     }
 
-    public static OffsetDateTime getLastModified(Document mycoreObject) {
+    public OffsetDateTime getLastModified(Document mycoreObject) {
         XPathExpression<Element> modifyDateXP
             = XPathFactory.instance().compile(MODIFY_DATE_XPATH, Filters.element(), null, MODS_NAMESPACE);
         final Element element = modifyDateXP.evaluateFirst(mycoreObject);
@@ -83,7 +83,7 @@ public class MODSUtil {
         return Instant.parse(text).atOffset(ZoneOffset.UTC);
     }
 
-    public static OffsetDateTime getCreateDate(Document mycoreObject) {
+    public OffsetDateTime getCreateDate(Document mycoreObject) {
         XPathExpression<Element> createDateXP
             = XPathFactory.instance().compile(CREATE_DATE_XPATH, Filters.element(), null, MODS_NAMESPACE);
         final Element element = createDateXP.evaluateFirst(mycoreObject);
@@ -94,7 +94,7 @@ public class MODSUtil {
         return Instant.parse(text).atOffset(ZoneOffset.UTC);
     }
 
-    public static String getCreatedBy(Document createdBy) {
+    public String getCreatedBy(Document createdBy) {
         XPathExpression<Element> createdByXPath
             = XPathFactory.instance().compile(CREATED_BY_XPATH, Filters.element(), null, MODS_NAMESPACE);
         final Element element = createdByXPath.evaluateFirst(createdBy);
@@ -104,7 +104,7 @@ public class MODSUtil {
         return element.getText();
     }
 
-    public static String getParent(Document mycoreObject) {
+    public String getParent(Document mycoreObject) {
         XPathExpression<Element> parentXPath = XPathFactory.instance().compile(PARENT_XPATH, Filters.element());
         final Element element = parentXPath.evaluateFirst(mycoreObject);
         if (element == null) {
@@ -113,7 +113,7 @@ public class MODSUtil {
         return element.getAttributeValue("href", XLINK_NAMESPACE);
     }
 
-    public static String getState(Document mycoreObject) {
+    public String getState(Document mycoreObject) {
         XPathExpression<Element> stateXPath = XPathFactory.instance().compile(STATE_XPATH, Filters.element());
         final Element element = stateXPath.evaluateFirst(mycoreObject);
            if (element == null) {
@@ -122,7 +122,7 @@ public class MODSUtil {
         return element.getAttributeValue("categid");
     }
 
-    public static boolean setState(Document mycoreObject, String state) {
+    public boolean setState(Document mycoreObject, String state) {
         XPathExpression<Element> stateXPath = XPathFactory.instance().compile(STATE_XPATH, Filters.element());
         final Element element = stateXPath.evaluateFirst(mycoreObject);
            if (element == null) {
@@ -135,7 +135,7 @@ public class MODSUtil {
         return true;
     }
 
-    public static MODSRecordInfo getRecordInfo(Document mycoreObject) {
+    public MODSRecordInfo getRecordInfo(Document mycoreObject) {
         XPathExpression<Element> recordInfoXPath
             = XPathFactory.instance().compile(RECORD_INFO_XPATH, Filters.element(), null, MODS_NAMESPACE);
         final Element element = recordInfoXPath.evaluateFirst(mycoreObject);
@@ -147,19 +147,19 @@ public class MODSUtil {
         return new MODSRecordInfo(id, url);
     }
 
-    public static boolean isLockedOrDeleted(Document childDoc) {
+    public boolean isLockedOrDeleted(Document childDoc) {
         XPathExpression<Element> fulltextXPath = XPathFactory.instance()
             .compile(LOCKED_DELETED_XPATH, Filters.element(), null, MODS_NAMESPACE);
         return fulltextXPath.evaluate(childDoc).size() > 0;
     }
 
-    public static Element getMetadata(Document mycoreObject) {
+    public Element getMetadata(Document mycoreObject) {
         XPathExpression<Element> metadataXPath = XPathFactory.instance()
             .compile(METADATA_XPATH, Filters.element(), null, MODS_NAMESPACE);
         return metadataXPath.evaluateFirst(mycoreObject);
     }
 
-    public static org.jdom2.Document wrapInMyCoReFrame(String xmlAsString, String baseID, String status) {
+    public org.jdom2.Document wrapInMyCoReFrame(String xmlAsString, String baseID, String status) {
         SAXBuilder builder = new SAXBuilder();
         Element modsDoc;
 
@@ -201,7 +201,7 @@ public class MODSUtil {
         return new org.jdom2.Document(mycoreDoc);
     }
 
-    public static void setRecordInfo(Document document, String foreignId, String configId) {
+    public void setRecordInfo(Document document, String foreignId, String configId) {
         XPathExpression<Element> recordInfoXPath
             = XPathFactory.instance().compile(RECORD_INFO_XPATH, Filters.element(), null, MODS_NAMESPACE);
         final Element element = recordInfoXPath.evaluateFirst(document);
@@ -224,7 +224,7 @@ public class MODSUtil {
         }
     }
 
-    public static void insertIdentifiers(Document metadataElement, List<Element> identifiers) {
+    public void insertIdentifiers(Document metadataElement, List<Element> identifiers) {
         XPathExpression<Element> modsXPath = XPathFactory.instance()
             .compile(MODS_FROM_METADATA_ELEMENT_XPATH, Filters.element(), null, MODS_NAMESPACE);
         Element modsElement = modsXPath.evaluateFirst(metadataElement);
@@ -242,9 +242,7 @@ public class MODSUtil {
         }
     }
 
-
-
-    public static void sortMODSInMyCoreObject(Document mycoreObject) {
+    public void sortMODSInMyCoreObject(Document mycoreObject) {
         XPathExpression<Element> modsXPath = XPathFactory.instance()
                 .compile(MODS_ELEMENT_XPATH, Filters.element(), null, MODS_NAMESPACE);
         Element modsElement = modsXPath.evaluateFirst(mycoreObject);
@@ -253,7 +251,7 @@ public class MODSUtil {
         }
     }
 
-    public static void sortMODSInMetadataElement(Document metadataElement) {
+    public void sortMODSInMetadataElement(Document metadataElement) {
         XPathExpression<Element> modsXPath = XPathFactory.instance()
                 .compile(MODS_FROM_METADATA_ELEMENT_XPATH, Filters.element(), null, MODS_NAMESPACE);
         Element modsElement = modsXPath.evaluateFirst(metadataElement);
@@ -262,10 +260,13 @@ public class MODSUtil {
         }
     }
 
-    public static void sortMODSElement(Element mods) {
-        mods.sortChildren(MODSUtil::compare);
+    public void sortMODSElement(Element mods) {
+        // Use instance method reference or lambda if compare becomes non-static
+        // Since compare uses static getPos which uses static ORDER_LIST, it can remain static
+        mods.sortChildren(MyCoReObjectService::compare);
     }
 
+    // compare and getPos can remain static as they only depend on static ORDER_LIST
     private static int compare(Element e1, Element e2) {
         int pos1 = getPos(e1);
         int pos2 = getPos(e2);

@@ -38,10 +38,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Autowired;
+
 @Service
 public class PicaMyCoReConversionService {
 
     private static final Logger log = LoggerFactory.getLogger(PicaMyCoReConversionService.class);
+    private final MyCoReObjectService myCoReObjectService; // Inject the new service
+
     private static final Namespace PICA_XML_NS = Namespace.getNamespace("pica", "info:srw/schema/5/picaXML-v1.0");
     private static final String PPN_TAG = "003@";
     private static final String PPN_CODE = "0";
@@ -65,6 +69,10 @@ public class PicaMyCoReConversionService {
     private static final XPathExpression<Element> MYCORE_MODS_XPATH = XPATH_FACTORY.compile(
             "/mycoreobject/metadata/def.modsContainer/modsContainer/mods:mods", Filters.element(), null, MODS_NS);
 
+    @Autowired
+    public PicaMyCoReConversionService(MyCoReObjectService myCoReObjectService) {
+        this.myCoReObjectService = myCoReObjectService;
+    }
 
     public void convertPicaXmlToMyCoRe(Path inputPath, Path outputDir, Path idMapperPath, String idBase) throws IOException, TransformerException, JDOMException {
         log.info("Starting PICA XML to MyCoRe conversion (Two-Pass)...");
@@ -186,9 +194,9 @@ public class PicaMyCoReConversionService {
                 transformer.transform(xmlSource, modsResult);
                 String modsXml = modsOutputWriter.toString();
 
-                // Wrap the MODS XML in a MyCoRe object frame
+                // Wrap the MODS XML in a MyCoRe object frame using the injected service
                 // Using "published" as the default status, this could be made configurable
-                Document mycoreDocument = MODSUtil.wrapInMyCoReFrame(modsXml, mycoreId, "published");
+                Document mycoreDocument = myCoReObjectService.wrapInMyCoReFrame(modsXml, mycoreId, "published");
 
                 // Store the generated document in the map instead of writing to file
                 generatedObjects.put(mycoreId, mycoreDocument);
