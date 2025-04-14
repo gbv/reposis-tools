@@ -84,17 +84,21 @@ public class PicaConversionService {
                 // Check if the raw line starts with the FIELD_INTRODUCER (\u001E)
                 if (line.charAt(0) == FIELD_INTRODUCER) {
                     // Remove the introducer character first
-                    String fieldDataWithPotentialWhitespace = line.substring(1);
-                    // NOW trim whitespace before matching the pattern
-                    String fieldData = fieldDataWithPotentialWhitespace.trim();
+                    String fieldData = line.substring(1);
+                    // DO NOT trim whitespace before matching the pattern
+                    // String fieldData = fieldDataWithPotentialWhitespace.trim(); // REMOVED
 
-                    // Skip if the line only contained the introducer and whitespace
-                    if (fieldData.isEmpty()) {
-                         System.out.println("Info: Skipping line with only Field Introducer and whitespace (Record #" + recordNumber + ", Line " + lineNumberInRecord + ")");
-                         continue;
-                    }
+                    // Skip if the line only contained the introducer (and potentially whitespace, now handled by regex)
+                    // The regex FIELD_PATTERN requires non-whitespace after the tag/occurrence,
+                    // so an empty fieldData or one with only whitespace won't match.
+                    // We might still want to skip completely blank lines *after* the introducer explicitly?
+                    // Let's rely on the regex match failure for now.
+                    // if (fieldData.isEmpty()) { // This check is less useful without trim()
+                    //      System.out.println("Info: Skipping line with only Field Introducer (Record #" + recordNumber + ", Line " + lineNumberInRecord + ")");
+                    //      continue;
+                    // }
 
-                    // Now, parse the trimmed remaining part which should be the PICA field
+                    // Now, parse the remaining part which should be the PICA field
                     Matcher matcher = FIELD_PATTERN.matcher(fieldData);
                     if (matcher.matches()) {
                         String tag = matcher.group(1);
@@ -139,24 +143,25 @@ public class PicaConversionService {
                         }
                         currentRecord.addField(field);
                     } else {
-                        // The line started with \u001E but didn't match the field pattern after trimming
-                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed as a PICA field after trimming: '" + fieldData + "'");
+                        // The line started with \u001E but didn't match the field pattern.
+                        // Log the original fieldData (without introducer)
+                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed as a PICA field: '" + fieldData + "'");
                     }
                 } else {
                     // Line does not start with the expected Field Introducer.
-                    // Trim now before checking for comments or issuing warning.
-                    String trimmedLine = line.trim();
-                    if (trimmedLine.isEmpty()) {
+                    // Check for blank lines or comments without trimming the original line.
+                    // String trimmedLine = line.trim(); // REMOVED
+                    if (line.isBlank()) { // Use isBlank() to ignore lines with only whitespace
                         // Was just whitespace, ignore.
                         continue;
                     }
-                    // Skip comment lines starting with #
-                    if (trimmedLine.startsWith("#")) {
-                        System.out.println("Info: Skipping comment (Record #" + recordNumber + ", Line " + lineNumberInRecord + "): " + trimmedLine);
+                    // Skip comment lines starting with #, allowing for leading whitespace
+                    if (line.stripLeading().startsWith("#")) { // Use stripLeading() before checking for comment
+                        System.out.println("Info: Skipping comment (Record #" + recordNumber + ", Line " + lineNumberInRecord + "): " + line); // Log original line
                         continue;
                     }
-                    // If it's not empty, not a comment, and didn't start with \u001E, it's an error.
-                    System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " does not start with the PICA Field Introducer (\\u001E): '" + trimmedLine + "'");
+                    // If it's not blank, not a comment, and didn't start with \u001E, it's an error.
+                    System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " does not start with the PICA Field Introducer (\\u001E): '" + line + "'"); // Log original line
                 }
             } // End of loop over lines in record
 
