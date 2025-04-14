@@ -17,43 +17,62 @@ import java.net.URISyntaxException;
 public class ClasspathUriResolver implements URIResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ClasspathUriResolver.class);
+    private static final String XSL_BASE_PATH = "/xsl/"; // Base path for XSL files on classpath
 
     @Override
     public Source resolve(String href, String base) throws TransformerException {
         log.debug("Attempting to resolve URI via classpath: href='{}', base='{}'", href, base);
 
+        String effectiveHref = href;
+        // Ensure href doesn't already start with the base path to avoid duplication
+        if (effectiveHref.startsWith(XSL_BASE_PATH)) {
+            log.trace("href '{}' already starts with base path '{}', using as is.", effectiveHref, XSL_BASE_PATH);
+        } else if (effectiveHref.startsWith("/")) {
+            // If href is absolute, prepend base path without the leading slash of href
+            effectiveHref = XSL_BASE_PATH + effectiveHref.substring(1);
+        } else {
+            // If href is relative, just prepend the base path
+            effectiveHref = XSL_BASE_PATH + effectiveHref;
+        }
+        log.debug("Effective href after prepending base path: {}", effectiveHref);
+
+
         String resolvePath;
         try {
             // If base is present and represents a classpath URI, try resolving relative to it.
-            // Otherwise, treat href as an absolute path within the classpath.
+            // Otherwise, treat effectiveHref as an absolute path within the classpath.
             if (base != null && !base.isEmpty()) {
                 URI baseUri = new URI(base);
                 // Simple check if base looks like a classpath resource path
+                // It should already contain the XSL_BASE_PATH if resolved by this resolver previously
                 if (baseUri.getScheme() == null || "classpath".equalsIgnoreCase(baseUri.getScheme())) {
-                    // Resolve href relative to the base path (removing any leading '/')
-                    URI resolved = baseUri.resolve(href.startsWith("/") ? href.substring(1) : href);
+                    // Resolve effectiveHref relative to the base path
+                    // Ensure base path ends with / for correct relative resolution
+                    String baseForResolve = baseUri.getPath().endsWith("/") ? baseUri.getPath() : baseUri.getPath() + "/";
+                    URI resolved = new URI(null, null, baseForResolve, null).resolve(effectiveHref.startsWith("/") ? effectiveHref.substring(1) : effectiveHref);
                     resolvePath = resolved.getPath();
-                    // Ensure the path starts with / for classpath loading if it's absolute
+                    // Ensure the path starts with / for classpath loading
                     if (!resolvePath.startsWith("/")) {
                         resolvePath = "/" + resolvePath;
                     }
                     log.debug("Resolved relative path: {}", resolvePath);
                 } else {
-                    // Base is not something we can easily resolve against in classpath, treat href as absolute
-                    resolvePath = href.startsWith("/") ? href : "/" + href;
-                    log.debug("Base URI '{}' not classpath-relative, treating href as absolute: {}", base, resolvePath);
+                    // Base is not something we can easily resolve against in classpath, treat effectiveHref as absolute
+                    resolvePath = effectiveHref.startsWith("/") ? effectiveHref : "/" + effectiveHref;
+                    log.debug("Base URI '{}' not classpath-relative, treating effectiveHref as absolute: {}", base, resolvePath);
                 }
             } else {
-                // No base, treat href as absolute path in classpath
-                resolvePath = href.startsWith("/") ? href : "/" + href;
-                log.debug("No base URI provided, treating href as absolute: {}", resolvePath);
+                // No base, treat effectiveHref as absolute path in classpath
+                resolvePath = effectiveHref.startsWith("/") ? effectiveHref : "/" + effectiveHref;
+                log.debug("No base URI provided, treating effectiveHref as absolute: {}", resolvePath);
             }
         } catch (URISyntaxException e) {
-            log.error("Error parsing base URI '{}' or href '{}'", base, href, e);
+            log.error("Error parsing base URI '{}' or effective href '{}'", base, effectiveHref, e);
             throw new TransformerException("Error resolving URI", e);
         }
 
-        // Attempt to load the resource from the classpath
+        // Attempt to load the resource from the classpath using the final resolved path
+        log.debug("Attempting to load resource from classpath: {}", resolvePath);
         InputStream inputStream = getClass().getResourceAsStream(resolvePath);
 
         if (inputStream != null) {
