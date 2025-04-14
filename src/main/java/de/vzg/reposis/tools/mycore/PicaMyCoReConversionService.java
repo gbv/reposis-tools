@@ -198,14 +198,79 @@ public class PicaMyCoReConversionService {
                 // but creating a new one per record or clearing is safer.
                 transformer.clearParameters();
 
-        } // End of loop over map entries
+        } // End of Pass 1 loop
+        log.info("Pass 1 finished. Generated {} initial objects.", generatedObjects.size());
 
-        // 8. Save ID Mapper if changed
+        // 8. Pass 2: Link related items and write final files
+        log.info("Starting Pass 2: Linking related items and writing final files...");
+        int linkedItemsCount = 0;
+        XMLOutputter finalOutputter = new XMLOutputter(Format.getPrettyFormat()); // For final file output
+
+        for (Map.Entry<String, Document> objEntry : generatedObjects.entrySet()) {
+            String currentMyCoReId = objEntry.getKey();
+            Document currentDocument = objEntry.getValue();
+            boolean objectModifiedInPass2 = false;
+
+            // Find relatedItems with the temporary PPN attribute
+            List<Element> itemsToLink = RELATED_ITEM_LINK_XPATH.evaluate(currentDocument);
+
+            for (Element relatedItem : itemsToLink) {
+                Attribute tempPpnAttr = relatedItem.getAttribute("relatedPPN", TEMP_NS);
+                if (tempPpnAttr == null) continue; // Should not happen based on XPath, but safe check
+
+                String relatedPPN = tempPpnAttr.getValue();
+                relatedItem.removeAttribute(tempPpnAttr); // Remove temporary attribute
+
+                // Find the MyCoRe ID for the related PPN
+                String relatedMyCoReId = idMapper.getProperty(relatedPPN);
+
+                if (relatedMyCoReId != null) {
+                    // Add xlink:href
+                    relatedItem.setAttribute("href", relatedMyCoReId, XLINK_NS);
+                    log.trace("Pass 2: Added xlink:href='{}' for related PPN {}", relatedMyCoReId, relatedPPN);
+
+                    // Find the related document in our generated map
+                    Document relatedDocument = generatedObjects.get(relatedMyCoReId);
+                    if (relatedDocument != null) {
+                        // Extract the mods:mods element from the related document
+                        Element relatedModsElement = MYCORE_MODS_XPATH.evaluateFirst(relatedDocument);
+                        if (relatedModsElement != null) {
+                            // Clone and add the related mods:mods to the current relatedItem
+                            relatedItem.addContent(relatedModsElement.clone());
+                            log.trace("Pass 2: Embedded related mods from {} into {}", relatedMyCoReId, currentMyCoReId);
+                            linkedItemsCount++;
+                            objectModifiedInPass2 = true;
+                        } else {
+                            log.warn("Pass 2: Could not find mods:mods element in related object {} (PPN: {})", relatedMyCoReId, relatedPPN);
+                        }
+                    } else {
+                        log.warn("Pass 2: Could not find related object {} (PPN: {}) in generated map for linking.", relatedMyCoReId, relatedPPN);
+                    }
+                } else {
+                    log.warn("Pass 2: Could not find MyCoRe ID mapping for related PPN {} found in object {}", relatedPPN, currentMyCoReId);
+                }
+            } // End loop over itemsToLink
+
+            // Write the final document (potentially modified in Pass 2) to the output directory
+            Path outputPath = outputDir.resolve(currentMyCoReId + ".xml");
+            try (OutputStreamWriter fileWriter = new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputPath)), StandardCharsets.UTF_8)) {
+                finalOutputter.output(currentDocument, fileWriter);
+                if(objectModifiedInPass2) {
+                    log.debug("Pass 2: Wrote final linked object to {}", outputPath);
+                } else {
+                    log.trace("Pass 2: Wrote final object (no links added) to {}", outputPath);
+                }
+            }
+        } // End of Pass 2 loop
+
+        // 9. Save ID Mapper if changed
         if (mapperChanged) {
             saveIdMapper(idMapper, idMapperPath);
         }
 
+        log.info("Pass 2 finished. Linked {} related items.", linkedItemsCount);
         log.info("Conversion finished. Processed {} unique PPN records.", recordCount);
+        // Add back the final log message about new IDs if mapper changed
         if (mapperChanged) {
             log.info("Generated {} new MyCoRe IDs and updated mapper file '{}'.", newIdsGenerated, idMapperPath);
         }
