@@ -21,7 +21,7 @@ public class ToolsShell {
         this.picaConversionService = picaConversionService;
     }
 
-    @ShellMethod(key = "convert-pica", value = "Converts PICA Importformat file (records separated by \\u001D\\n, fields introduced by \\u001E, subfields by \\u001F) to PICA XML.")
+    @ShellMethod(key = "convert-import-picaxml", value = "Converts PICA Importformat file to PICA XML.")
     public void convertPica(
             @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA Importformat file.") String input,
             @ShellOption(value = {"-o", "--output"}, help = "Path to the output PICA XML file.") String output) {
@@ -43,5 +43,16 @@ public class ToolsShell {
             System.err.println("An unexpected error occurred during PICA conversion: " + e.getMessage());
             e.printStackTrace(); // Print stack trace for unexpected errors
         }
+    }
+
+
+    @ShellMethod(key = "convert-pica-mycore", value = "Converts PICA XML to MyCoRe objects.")
+    public void convertPicaXMLToMyCoReObjects(
+            @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA XML file.") String input,
+            @ShellOption(value = {"-o", "--output"}, help = "Path to the directory for outputting MyCoRe objects.") String output,
+            @ShellOption(value = {"--id-mapper"}, help = "A file which contains the mapping of PICA production number (003@0 to MyCoRe IDs).") String idMapper,
+            @ShellOption(value = {"--id-base"}, help = "A base ID for the MyCoRe objects. E.g. artus_mods_00000000") String idBase
+    ) {
+
     }
 }
