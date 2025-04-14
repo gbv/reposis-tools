@@ -7,6 +7,6 @@ import org.springframework.shell.standard.ShellOption;
 public class ToolsShell {
 
     public void convertPica(@ShellOption("input") String input, @ShellOption("output") String output) {
-        
+
     }
 }
