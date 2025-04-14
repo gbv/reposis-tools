@@ -390,7 +390,6 @@ public class PicaMyCoReConversionService {
                     break;
 
                 case XMLEvent.COMMENT:
-                    writer.writeComment(event.asComment().getText());
                     break;
 
                 case XMLEvent.CDATA:
