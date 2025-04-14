@@ -167,6 +167,11 @@ public class PicaMyCoReConversionService {
             String ppn = entry.getKey();
             Element recordElement = entry.getValue(); // This is the cloned PICA record element
 
+            // Log progress periodically
+            if (recordCount % LOG_INTERVAL == 0) {
+                log.info("Pass 1: Processed {} records...", recordCount);
+            }
+
             // Get or generate MyCoRe ID
             String mycoreId;
             if (idMapper.containsKey(ppn)) {
