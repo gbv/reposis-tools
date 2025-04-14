@@ -72,6 +72,8 @@ public class PicaMyCoReConversionService {
         } catch (TransformerConfigurationException e) {
             log.warn("Could not set secure processing feature for TransformerFactory: {}", e.getMessage());
         }
+        // Set the custom URI resolver for classpath lookups
+        transformerFactory.setURIResolver(new ClasspathUriResolver());
 
         // Load XSLT from classpath
         Source xsltSource = loadXsltFromClasspath(XSLT_PATH);
