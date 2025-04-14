@@ -174,8 +174,8 @@ public class PicaMyCoReConversionService {
 
                 // Write the complete MyCoRe object to the output file
                 try (OutputStreamWriter fileWriter = new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputPath)), StandardCharsets.UTF_8)) {
-                    XMLOutputter xmlOutputter = new XMLOutputter(Format.getPrettyFormat());
-                    xmlOutputter.output(mycoreDocument, fileWriter);
+                    XMLOutputter mycoreXmlOutputter = new XMLOutputter(Format.getPrettyFormat());
+                    mycoreXmlOutputter.output(mycoreDocument, fileWriter);
                 }
 
                 // Transformer parameter should be cleared/reset if the instance is reused heavily,
