@@ -40,9 +40,7 @@ public class ToolsShell {
         } catch (IOException e) {
             System.err.println("Error during file I/O: " + e.getMessage());
             // Consider more specific error handling or logging
-        } catch (XMLStreamException e) {
-            System.err.println("Error generating XML structure: " + e.getMessage());
-        } catch (TransformerException e) {
+        } catch (TransformerException e) { // Removed XMLStreamException catch
             System.err.println("Error transforming/writing formatted XML: " + e.getMessage());
         } catch (Exception e) { // Catch unexpected errors
             System.err.println("An unexpected error occurred during PICA conversion: " + e.getMessage());
@@ -69,10 +67,10 @@ public class ToolsShell {
             System.err.println("Error: Input file not found: " + e.getMessage());
         } catch (IOException e) {
             System.err.println("Error during file I/O: " + e.getMessage());
-        } catch (XMLStreamException e) {
-            System.err.println("Error parsing PICA XML: " + e.getMessage());
-            e.printStackTrace(); // Include stack trace for XML errors
-        } catch (TransformerException e) {
+        } catch (org.jdom2.JDOMException e) { // Added catch for JDOMException
+            System.err.println("Error parsing XML with JDOM: " + e.getMessage());
+            e.printStackTrace(); // Include stack trace for JDOM errors
+        } catch (TransformerException e) { // Removed XMLStreamException catch
             System.err.println("Error during XSLT transformation: " + e.getMessage());
             e.printStackTrace(); // Include stack trace for XSLT errors
         } catch (IllegalArgumentException e) {
