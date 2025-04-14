@@ -18,30 +18,39 @@ public class ClasspathUriResolver implements URIResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ClasspathUriResolver.class);
     private static final String XSL_BASE_PATH = "/xsl/"; // Base path for XSL files on classpath
+    private static final String RESOURCE_SCHEME = "resource:";
 
     @Override
     public Source resolve(String href, String base) throws TransformerException {
-        log.debug("Attempting to resolve URI via classpath: href='{}', base='{}'", href, base);
-
-        String effectiveHref = href;
-        // Ensure href doesn't already start with the base path to avoid duplication
-        if (effectiveHref.startsWith(XSL_BASE_PATH)) {
-            log.trace("href '{}' already starts with base path '{}', using as is.", effectiveHref, XSL_BASE_PATH);
-        } else if (effectiveHref.startsWith("/")) {
-            // If href is absolute, prepend base path without the leading slash of href
-            effectiveHref = XSL_BASE_PATH + effectiveHref.substring(1);
-        } else {
-            // If href is relative, just prepend the base path
-            effectiveHref = XSL_BASE_PATH + effectiveHref;
-        }
-        log.debug("Effective href after prepending base path: {}", effectiveHref);
-
+        log.debug("Attempting to resolve URI: href='{}', base='{}'", href, base);
 
         String resolvePath;
-        try {
-            // If base is present and represents a classpath URI, try resolving relative to it.
-            // Otherwise, treat effectiveHref as an absolute path within the classpath.
-            if (base != null && !base.isEmpty()) {
+
+        // Check for custom 'resource:' scheme
+        if (href != null && href.startsWith(RESOURCE_SCHEME)) {
+            String resourcePath = href.substring(RESOURCE_SCHEME.length());
+            // Ensure it starts with a slash for absolute classpath lookup
+            resolvePath = resourcePath.startsWith("/") ? resourcePath : "/" + resourcePath;
+            log.debug("Resolved 'resource:' scheme URI '{}' to classpath path '{}'", href, resolvePath);
+        } else {
+            // Handle standard XSL includes/imports, prepending /xsl/
+            String effectiveHref = href;
+            // Ensure href doesn't already start with the base path to avoid duplication
+            if (effectiveHref.startsWith(XSL_BASE_PATH)) {
+                log.trace("href '{}' already starts with XSL base path '{}', using as is.", effectiveHref, XSL_BASE_PATH);
+            } else if (effectiveHref.startsWith("/")) {
+                // If href is absolute, prepend base path without the leading slash of href
+                effectiveHref = XSL_BASE_PATH + effectiveHref.substring(1);
+            } else {
+                // If href is relative, just prepend the base path
+                effectiveHref = XSL_BASE_PATH + effectiveHref;
+            }
+            log.debug("Effective href after prepending XSL base path: {}", effectiveHref);
+
+            try {
+                // If base is present and represents a classpath URI, try resolving relative to it.
+                // Otherwise, treat effectiveHref as an absolute path within the classpath.
+                if (base != null && !base.isEmpty()) {
                 URI baseUri = new URI(base);
                 // Simple check if base looks like a classpath resource path
                 // It should already contain the XSL_BASE_PATH if resolved by this resolver previously
@@ -70,6 +79,7 @@ public class ClasspathUriResolver implements URIResolver {
             log.error("Error parsing base URI '{}' or effective href '{}'", base, effectiveHref, e);
             throw new TransformerException("Error resolving URI", e);
         }
+        } // End of else block for non-resource scheme handling
 
         // Attempt to load the resource from the classpath using the final resolved path
         log.debug("Attempting to load resource from classpath: {}", resolvePath);
