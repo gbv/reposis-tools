@@ -237,15 +237,12 @@ public class PicaMyCoReConversionService {
         Element ppnElement = PPN_XPATH.evaluateFirst(recordElement);
         if (ppnElement != null) {
             String rawPpn = ppnElement.getTextTrim();
+            // Return the raw PPN directly without normalization/check digit removal
             if (rawPpn != null && !rawPpn.isEmpty()) {
-                // Normalize PPN: Remove potential trailing check digit (X or 0-9)
-                if (rawPpn.matches(".*[X\\d]$")) {
-                    return rawPpn.substring(0, rawPpn.length() - 1);
-                }
-                return rawPpn; // Return as is if no apparent check digit
+                return rawPpn;
             }
         }
-        return null;
+        return null; // Return null if element not found or text is empty
     }
 
 
