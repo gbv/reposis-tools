@@ -15,10 +15,13 @@ import java.nio.file.Paths;
 public class ToolsShell {
 
     private final PicaConversionService picaConversionService;
+    private final PicaMyCoReConversionService picaMyCoReConversionService; // Added
 
-    // Constructor injection for the service
-    public ToolsShell(PicaConversionService picaConversionService) {
+    // Constructor injection for the services
+    public ToolsShell(PicaConversionService picaConversionService,
+                      PicaMyCoReConversionService picaMyCoReConversionService) { // Added
         this.picaConversionService = picaConversionService;
+        this.picaMyCoReConversionService = picaMyCoReConversionService; // Added
     }
 
     @ShellMethod(key = "convert-import-picaxml", value = "Converts PICA Importformat file to PICA XML.")
@@ -50,9 +53,31 @@ public class ToolsShell {
     public void convertPicaXMLToMyCoReObjects(
             @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA XML file.") String input,
             @ShellOption(value = {"-o", "--output"}, help = "Path to the directory for outputting MyCoRe objects.") String output,
-            @ShellOption(value = {"--id-mapper"}, help = "A file which contains the mapping of PICA production number (003@0 to MyCoRe IDs).") String idMapper,
-            @ShellOption(value = {"--id-base"}, help = "A base ID for the MyCoRe objects. E.g. artus_mods_00000000") String idBase
+            @ShellOption(value = {"--id-mapper"}, help = "Path to the file containing PPN to MyCoRe ID mappings (Properties format). Will be created/updated.") String idMapperPathStr,
+            @ShellOption(value = {"--id-base"}, help = "Template for generating new MyCoRe object IDs (e.g., artus_mods_00000000).") String idBase
     ) {
+        Path inputPath = Paths.get(input);
+        Path outputDirPath = Paths.get(output);
+        Path idMapperPath = Paths.get(idMapperPathStr);
 
+        try {
+            picaMyCoReConversionService.convertPicaXmlToMyCoRe(inputPath, outputDirPath, idMapperPath, idBase);
+            System.out.println("PICA XML to MyCoRe conversion completed successfully.");
+        } catch (FileNotFoundException e) {
+            System.err.println("Error: Input file not found: " + e.getMessage());
+        } catch (IOException e) {
+            System.err.println("Error during file I/O: " + e.getMessage());
+        } catch (XMLStreamException e) {
+            System.err.println("Error parsing PICA XML: " + e.getMessage());
+            e.printStackTrace(); // Include stack trace for XML errors
+        } catch (TransformerException e) {
+            System.err.println("Error during XSLT transformation: " + e.getMessage());
+            e.printStackTrace(); // Include stack trace for XSLT errors
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: Invalid argument provided: " + e.getMessage());
+        } catch (Exception e) { // Catch unexpected errors
+            System.err.println("An unexpected error occurred during PICA XML to MyCoRe conversion: " + e.getMessage());
+            e.printStackTrace(); // Print stack trace for unexpected errors
+        }
     }
 }
