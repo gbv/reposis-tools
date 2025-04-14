@@ -196,7 +196,7 @@ public class MODSUtil {
 
         mycoreDoc.addContent(service);
 
-        mycoreDoc.setAttribute("ID", baseID + "_00000000");
+        mycoreDoc.setAttribute("ID", baseID);
 
         return new org.jdom2.Document(mycoreDoc);
     }
