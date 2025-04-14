@@ -58,6 +58,13 @@ public class ToolsShell {
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
+
+                // Skip comment/metadata lines starting with ##
+                if (line.startsWith("##")) {
+                    System.out.println("Info: Skipping metadata/comment line " + lineNumber + ": " + line);
+                    continue; // Move to the next line
+                }
+
                 // Handle the specific line separator at the beginning of the line
                 if (line.startsWith(String.valueOf(LINE_TERMINATOR))) {
                     line = line.substring(1);
