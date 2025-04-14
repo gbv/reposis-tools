@@ -57,10 +57,11 @@ public class ClasspathUriResolver implements URIResolver {
     public Source resolve(String href, String base) throws TransformerException {
         log.debug("Attempting to resolve URI: href='{}', base='{}'", href, base);
 
-        // 1. Check for UNAPI PPN request
-        try {
-            if (href != null && href.startsWith("https://" + UNAPI_HOST)) {
+        // 1. Check for allowed UNAPI PPN request
+        if (href != null && href.startsWith("https://" + UNAPI_HOST)) {
+            try {
                 URL url = new URL(href);
+                // Double-check host just in case
                 if (UNAPI_HOST.equalsIgnoreCase(url.getHost())) {
                     String query = url.getQuery();
                     String format = null;
@@ -107,15 +108,22 @@ public class ClasspathUriResolver implements URIResolver {
                                 return null; // Cannot fulfill request
                             }
                         }
+                        }
                     }
                 }
+            } catch (Exception e) { // Catch MalformedURLException, IOException, etc.
+                log.error("Error processing allowed UNAPI request '{}': {}", href, e.getMessage(), e);
+                // Fall through to standard resolution, though this likely indicates an issue
             }
-        } catch (Exception e) { // Catch MalformedURLException, IOException, XMLStreamException
-            log.error("Error processing potential UNAPI request '{}': {}", href, e.getMessage(), e);
-            // Fall through to standard resolution
+        } else if (href != null && (href.startsWith("http://") || href.startsWith("https://"))) {
+            // 2. Block other HTTP/HTTPS requests
+            log.warn("Blocked external HTTP/HTTPS request from XSLT: {}", href);
+            // Returning null prevents the default resolver from trying to fetch it.
+            // Alternatively, could throw a TransformerException here.
+            return null;
         }
 
-        // 2. Fallback to Classpath/Resource resolution
+        // 3. Handle Classpath/Resource resolution (including relative paths from XSLT)
         String resolvePath;
 
         // Check for custom 'resource:' scheme
