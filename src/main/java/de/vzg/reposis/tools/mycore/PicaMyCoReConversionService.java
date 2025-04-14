@@ -15,6 +15,10 @@ import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+
+import org.jdom2.Document;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -153,9 +157,22 @@ public class PicaMyCoReConversionService {
                 transformer.setParameter(XSLT_PARAM_OBJECT_ID, mycoreId);
                 // Use the captured XML string as the source for transformation
                 Source xmlSource = new StreamSource(new StringReader(recordXmlWriter.toString()));
-                Result outputResult = new StreamResult(new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputPath)), StandardCharsets.UTF_8));
 
-                transformer.transform(xmlSource, outputResult);
+                // Capture XSLT result to a StringWriter
+                StringWriter modsOutputWriter = new StringWriter();
+                Result modsResult = new StreamResult(modsOutputWriter);
+                transformer.transform(xmlSource, modsResult);
+                String modsXml = modsOutputWriter.toString();
+
+                // Wrap the MODS XML in a MyCoRe object frame
+                // Using "published" as the default status, this could be made configurable
+                Document mycoreDocument = MODSUtil.wrapInMyCoReFrame(modsXml, mycoreId, "published");
+
+                // Write the complete MyCoRe object to the output file
+                try (OutputStreamWriter fileWriter = new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputPath)), StandardCharsets.UTF_8)) {
+                    XMLOutputter xmlOutputter = new XMLOutputter(Format.getPrettyFormat());
+                    xmlOutputter.output(mycoreDocument, fileWriter);
+                }
 
                 // Transformer parameter should be cleared/reset if the instance is reused heavily,
                 // but creating a new one per record or clearing is safer.
