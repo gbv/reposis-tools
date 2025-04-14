@@ -10,6 +10,15 @@ import org.jdom2.filter.Filters;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
+import org.jdom2.Attribute;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.JDOMException;
+import org.jdom2.Namespace;
+import org.jdom2.filter.Filters;
+import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
 import org.slf4j.Logger;
@@ -38,6 +47,10 @@ public class PicaMyCoReConversionService {
     private static final String PPN_CODE = "0";
     private static final String XSLT_PATH = "/xsl/pica2mods.xsl"; // Default classpath location
     private static final String XSLT_PARAM_OBJECT_ID = "ObjectID"; // Assumed parameter name
+    private static final Namespace TEMP_NS = Namespace.getNamespace("temp", "urn:temp-linking");
+    private static final Namespace XLINK_NS = Namespace.getNamespace("xlink", "http://www.w3.org/1999/xlink");
+    private static final Namespace MODS_NS = Namespace.getNamespace("mods", "http://www.loc.gov/mods/v3");
+
 
     // XPath expressions for JDOM
     private static final XPathFactory XPATH_FACTORY = XPathFactory.instance();
@@ -45,10 +58,16 @@ public class PicaMyCoReConversionService {
             "//pica:record", Filters.element(), null, PICA_XML_NS);
     private static final XPathExpression<Element> PPN_XPATH = XPATH_FACTORY.compile(
             "pica:datafield[@tag='" + PPN_TAG + "']/pica:subfield[@code='" + PPN_CODE + "']", Filters.element(), null, PICA_XML_NS);
+    // XPath to find relatedItems needing linking in Pass 2
+    private static final XPathExpression<Element> RELATED_ITEM_LINK_XPATH = XPATH_FACTORY.compile(
+            "//mods:mods/mods:relatedItem[@temp:relatedPPN]", Filters.element(), null, MODS_NS, TEMP_NS);
+    // XPath to find the mods:mods element within a MyCoRe object document
+    private static final XPathExpression<Element> MYCORE_MODS_XPATH = XPATH_FACTORY.compile(
+            "/mycoreobject/metadata/def.modsContainer/modsContainer/mods:mods", Filters.element(), null, MODS_NS);
 
 
     public void convertPicaXmlToMyCoRe(Path inputPath, Path outputDir, Path idMapperPath, String idBase) throws IOException, TransformerException, JDOMException {
-        log.info("Starting PICA XML to MyCoRe conversion...");
+        log.info("Starting PICA XML to MyCoRe conversion (Two-Pass)...");
         log.info("Input PICA XML: {}", inputPath);
         log.info("Output Directory: {}", outputDir);
         log.info("ID Mapper File: {}", idMapperPath);
@@ -127,16 +146,18 @@ public class PicaMyCoReConversionService {
         // Load XSLT from classpath
         Source xsltSource = loadXsltFromClasspath(XSLT_PATH);
         Transformer transformer = transformerFactory.newTransformer(xsltSource);
-        XMLOutputter xmlOutputter = new XMLOutputter(Format.getRawFormat()); // For converting record Element to String
+        XMLOutputter xmlOutputter = new XMLOutputter(Format.getRawFormat()); // For converting record Element to String for XSLT input
 
-        // 7. Process Records from the Map
+        // 7. Pass 1: Generate initial MyCoRe objects (in memory)
+        log.info("Starting Pass 1: Generating initial MyCoRe objects...");
+        Map<String, Document> generatedObjects = new HashMap<>(); // Store generated objects by MyCoRe ID
         int recordCount = 0;
         int newIdsGenerated = 0;
 
         for (Map.Entry<String, Element> entry : ppnToRecordMap.entrySet()) {
             recordCount++;
             String ppn = entry.getKey();
-            Element recordElement = entry.getValue();
+            Element recordElement = entry.getValue(); // This is the cloned PICA record element
 
             // Get or generate MyCoRe ID
             String mycoreId;
@@ -151,11 +172,8 @@ public class PicaMyCoReConversionService {
                 log.info("Record #{}: Generated new mapping PPN {} -> MyCoRe ID {}", recordCount, ppn, mycoreId);
             }
 
-            // Prepare output file path
-            Path outputPath = outputDir.resolve(mycoreId + ".xml");
-
             // Perform XSLT Transformation
-            log.debug("Transforming record for PPN {} (MyCoRe ID {}) to {}", ppn, mycoreId, outputPath);
+            log.debug("Pass 1: Transforming record for PPN {} (MyCoRe ID {})", ppn, mycoreId);
             transformer.setParameter(XSLT_PARAM_OBJECT_ID, mycoreId);
 
             // Convert the JDOM Element to an XML String Source
@@ -172,11 +190,9 @@ public class PicaMyCoReConversionService {
                 // Using "published" as the default status, this could be made configurable
                 Document mycoreDocument = MODSUtil.wrapInMyCoReFrame(modsXml, mycoreId, "published");
 
-                // Write the complete MyCoRe object to the output file
-                try (OutputStreamWriter fileWriter = new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputPath)), StandardCharsets.UTF_8)) {
-                    XMLOutputter mycoreXmlOutputter = new XMLOutputter(Format.getPrettyFormat());
-                    mycoreXmlOutputter.output(mycoreDocument, fileWriter);
-                }
+                // Store the generated document in the map instead of writing to file
+                generatedObjects.put(mycoreId, mycoreDocument);
+                log.trace("Pass 1: Stored initial object for {}", mycoreId);
 
                 // Transformer parameter should be cleared/reset if the instance is reused heavily,
                 // but creating a new one per record or clearing is safer.

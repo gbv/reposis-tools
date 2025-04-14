@@ -5,7 +5,8 @@
                 xmlns:p="info:srw/schema/5/picaXML-v1.0"
                 xmlns:mods="http://www.loc.gov/mods/v3"
                 xmlns:xlink="http://www.w3.org/1999/xlink"
-                exclude-result-prefixes="mods pica2mods p xlink">
+                xmlns:temp="urn:temp-linking"
+                exclude-result-prefixes="mods pica2mods p xlink temp">
 
     <xsl:import use-when="system-property('XSL_TESTING')='true'" href="_common/pica2mods-functions.xsl" />
     <xsl:param name="MCR.PICA2MODS.DATABASE" select="'k10plus'" />
@@ -80,11 +81,53 @@
     </xsl:template>
 
     <xsl:template name="COMMON_HostOrSeries">
-        <mods:relatedItem>
-            <xsl:variable name="parent" select="pica2mods:queryPicaFromUnAPIWithPPN($MCR.PICA2MODS.DATABASE, ./p:subfield[@code='9'])" />
-            <xsl:variable name="parentPica0500_2" select="substring($parent/p:datafield[@tag='002@']/p:subfield[@code='0'],2,1)" />
-            <xsl:choose>
-                <xsl:when test="./@tag='036C'"> <!-- 4150  Mehrbändiges Werk -->
+        <xsl:variable name="relatedPPN" select="./p:subfield[@code='9']"/>
+        <xsl:if test="$relatedPPN">
+            <mods:relatedItem temp:relatedPPN="{$relatedPPN}">
+                <!-- Fetch parent only to determine type if necessary -->
+                <xsl:variable name="parent" select="pica2mods:queryPicaFromUnAPIWithPPN($MCR.PICA2MODS.DATABASE, $relatedPPN)" />
+                <xsl:variable name="parentPica0500_2" select="substring($parent/p:datafield[@tag='002@']/p:subfield[@code='0'],2,1)" />
+                <xsl:choose>
+                    <xsl:when test="./@tag='036C'"> <!-- 4150  Mehrbändiges Werk -->
+                        <xsl:attribute name="type">host</xsl:attribute>
+                    </xsl:when>
+                    <xsl:when test="./@tag='036D'"> <!-- 4160  Mehrbändiges Werk -->
+                        <xsl:attribute name="type">host</xsl:attribute>
+                    </xsl:when>
+                    <xsl:when test="./@tag='036E'"> <!-- 4170  fortlaufende Resource -->
+                        <xsl:attribute name="type">series</xsl:attribute>
+                    </xsl:when>
+                    <xsl:when test="./@tag='036F' and $parentPica0500_2 = 'b'"> <!-- 4180  Zeitung / Zeitschrift-->
+                        <xsl:attribute name="type">host</xsl:attribute>
+                    </xsl:when>
+                    <xsl:when test="./@tag='036F' and $parentPica0500_2 = 'd'"> <!-- 4180  Schriftenreihe -->
+                        <xsl:attribute name="type">series</xsl:attribute>
+                    </xsl:when>
+                    <!-- Add default type if needed -->
+                </xsl:choose>
+                <xsl:attribute name="otherType">hierarchical</xsl:attribute>
+
+                <!-- Remove direct population from parent -->
+                <!--
+                <xsl:choose>
+                    <xsl:when test="$parent/*">
+                        <xsl:call-template name="parent_info">
+                            <xsl:with-param name="parent" select="$parent" />
+                        </xsl:call-template>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:call-template name="simple_title">
+                            <xsl:with-param name="datafield" select="." />
+                        </xsl:call-template>
+                    </xsl:otherwise>
+                </xsl:choose>
+                -->
+
+                <!-- Keep mods:part generation as it comes from the linking record -->
+                <xsl:if test="../p:datafield[@tag='036C' or @tag='036D' or @tag='036E' or @tag='036F']">
+                    <mods:part>
+                        <!-- set order attribute only if value of subfield $X is a number -->
+                        <xsl:if test="./p:subfield[@code='X']">
                     <xsl:attribute name="type">host</xsl:attribute>
                 </xsl:when>
                 <xsl:when test="./@tag='036D'"> <!-- 4160  Mehrbändiges Werk -->
@@ -484,22 +527,10 @@
         </xsl:if>
     </xsl:template>
 
+    <!-- Remove parent_info template as it's no longer called from relatedItem templates -->
+    <!--
     <xsl:template name="parent_info">
-        <xsl:param name="parent" />
-        <xsl:for-each select="$parent/p:datafield[@tag='003@']/p:subfield[@code='0']"> <!-- 0100 PPN -->
-            <mods:identifier type="uri">
-                <xsl:value-of select="concat('https://uri.gbv.de/document/',$MCR.PICA2MODS.DATABASE,':ppn:', .)" />
-            </mods:identifier>
-        </xsl:for-each>
-        <xsl:for-each select="$parent/p:datafield[@tag='021A']">
-            <xsl:call-template name="simple_title">
-                <xsl:with-param name="datafield" select="." />
-            </xsl:call-template>
-        </xsl:for-each>
-        <xsl:for-each select="$parent/p:datafield[@tag='006Z']/p:subfield[@code='0']">
-            <mods:identifier type="zdb">
-                <xsl:value-of select="." />
-            </mods:identifier>
-        </xsl:for-each>
+        ...
     </xsl:template>
+    -->
 </xsl:stylesheet>
