@@ -105,25 +105,23 @@ public class PicaMyCoReConversionService {
             }
 
             // Process each record
-            while (isStartElement(reader.peek(), RECORD_ELEMENT)) {
+            while (reader.hasNext() && isStartElement(reader.peek(), RECORD_ELEMENT)) {
                 recordCount++;
-                // Use StAXSource for potentially better performance
-                StAXSource recordSource = new StAXSource(reader);
 
                 // We need to consume the source to extract PPN *and* use it for transformation.
                 // Reading the record into a temporary buffer (StringWriter) allows both.
                 StringWriter recordXmlWriter = new StringWriter();
-                XMLEventWriter recordEventWriter = XMLOutputFactory.newInstance().createXMLEventWriter(recordXmlWriter);
-                // Create a *new* reader for the *same* source segment to extract PPN
-                XMLEventReader ppnReader = inputFactory.createXMLEventReader(recordSource); // Consumes from original reader!
+                // Need an OutputFactory to create the writer
+                XMLOutputFactory outputFactory = XMLOutputFactory.newInstance();
+                XMLEventWriter recordEventWriter = outputFactory.createXMLEventWriter(recordXmlWriter);
 
-                // Copy events to StringWriter and extract PPN simultaneously
-                String ppn = extractPpnAndWriteEvents(ppnReader, recordEventWriter);
+                // Extract PPN and write events directly from the main reader to the StringWriter buffer.
+                // This method will consume the events for the current record from 'reader'.
+                String ppn = extractPpnAndWriteEvents(reader, recordEventWriter);
 
                 if (ppn == null) {
-                    log.warn("Record #{} skipped: Could not find PPN ({} ${})", recordCount, PPN_TAG, PPN_CODE);
-                    // Ensure the original reader is advanced past this record by consuming the ppnReader fully
-                    while(ppnReader.hasNext()) ppnReader.nextEvent();
+                    log.warn("Record #{} skipped: Could not find PPN ({} ${}). Record XML might be incomplete in buffer.", recordCount, PPN_TAG, PPN_CODE);
+                    // 'reader' has already been advanced by extractPpnAndWriteEvents past the problematic record.
                     continue; // Skip this record
                 }
 
