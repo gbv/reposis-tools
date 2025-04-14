@@ -93,9 +93,9 @@ public class PicaMyCoReConversionService {
                 }
             } else {
                 log.warn("Record found without a valid PPN (Tag: {}, Code: {}). Skipping.", PPN_TAG, PPN_CODE);
-                // Optionally log the record XML for debugging
-                // XMLOutputter xmlOutputter = new XMLOutputter(Format.getCompactFormat());
-                // log.debug("Skipped record XML: {}", xmlOutputter.outputString(record));
+                // Log the skipped record XML for debugging
+                 XMLOutputter skippedRecordOutputter = new XMLOutputter(Format.getCompactFormat());
+                 log.debug("Skipped record XML: {}", skippedRecordOutputter.outputString(record));
             }
         }
         log.info("Created map with {} unique PPNs.", ppnToRecordMap.size());

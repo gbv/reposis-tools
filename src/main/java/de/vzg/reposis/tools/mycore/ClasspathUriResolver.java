@@ -92,6 +92,9 @@ public class ClasspathUriResolver implements URIResolver {
                                     log.info("Found PICA record for PPN {} in pre-parsed map.", ppn);
                                     // Convert the JDOM Element to an XML string
                                     String recordXml = xmlOutputter.outputString(recordElement);
+                                    // Log the beginning of the XML being returned for debugging parsing issues
+                                    int logLength = Math.min(recordXml.length(), 200); // Log first 200 chars
+                                    log.debug("Returning XML for PPN {}: {}...", ppn, recordXml.substring(0, logLength).replace('\n', ' '));
                                     // Return the found record XML as a StreamSource
                                     return new StreamSource(new StringReader(recordXml), href); // Use href as systemId
                                 } else {
