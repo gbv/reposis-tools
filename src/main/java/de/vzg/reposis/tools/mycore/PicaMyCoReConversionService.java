@@ -236,7 +236,14 @@ public class PicaMyCoReConversionService {
     private String extractPpnFromRecord(Element recordElement) {
         Element ppnElement = PPN_XPATH.evaluateFirst(recordElement);
         if (ppnElement != null) {
-            return ppnElement.getTextTrim();
+            String rawPpn = ppnElement.getTextTrim();
+            if (rawPpn != null && !rawPpn.isEmpty()) {
+                // Normalize PPN: Remove potential trailing check digit (X or 0-9)
+                if (rawPpn.matches(".*[X\\d]$")) {
+                    return rawPpn.substring(0, rawPpn.length() - 1);
+                }
+                return rawPpn; // Return as is if no apparent check digit
+            }
         }
         return null;
     }

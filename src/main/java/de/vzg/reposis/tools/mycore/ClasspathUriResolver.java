@@ -30,7 +30,8 @@ public class ClasspathUriResolver implements URIResolver {
     private static final String XSL_BASE_PATH = "/xsl/"; // Base path for XSL files on classpath
     private static final String RESOURCE_SCHEME = "resource:";
     private static final String UNAPI_HOST = "unapi.k10plus.de";
-    private static final Pattern PPN_PATTERN = Pattern.compile("gvk:ppn:(\\d+)");
+    // Updated pattern to capture only digits, ignoring optional check digit [X0-9] at the end
+    private static final Pattern PPN_PATTERN = Pattern.compile("gvk:ppn:(\\d+)[X\\d]?$");
 
     private final Map<String, Element> ppnToRecordMap;
     private final XMLOutputter xmlOutputter; // For converting Element to String
