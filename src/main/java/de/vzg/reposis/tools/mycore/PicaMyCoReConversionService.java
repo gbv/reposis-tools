@@ -117,13 +117,14 @@ public class PicaMyCoReConversionService {
                 // We need to consume the source to extract PPN *and* use it for transformation.
                 // Reading the record into a temporary buffer (StringWriter) allows both.
                 StringWriter recordXmlWriter = new StringWriter();
-                // Need an OutputFactory to create the writer
                 XMLOutputFactory outputFactory = XMLOutputFactory.newInstance();
-                XMLEventWriter recordEventWriter = outputFactory.createXMLEventWriter(recordXmlWriter);
+                // Use XMLStreamWriter for better namespace control
+                XMLStreamWriter streamWriter = outputFactory.createXMLStreamWriter(recordXmlWriter);
 
-                // Extract PPN and write events directly from the main reader to the StringWriter buffer.
-                // This method will consume the events for the current record from 'reader'.
-                String ppn = extractPpnAndWriteEvents(reader, recordEventWriter);
+                // Extract PPN and write events directly from the main reader to the StringWriter buffer
+                // using the XMLStreamWriter. This method consumes events for the current record.
+                String ppn = extractPpnAndWriteEvents(reader, streamWriter); // Pass streamWriter
+                streamWriter.close(); // Close writer to finalize the string buffer
 
                 if (ppn == null) {
                     log.warn("Record #{} skipped: Could not find PPN ({} ${}). Record XML might be incomplete in buffer.", recordCount, PPN_TAG, PPN_CODE);
@@ -246,59 +247,180 @@ public class PicaMyCoReConversionService {
         return false;
     }
 
-
-    private String extractPpnAndWriteEvents(XMLEventReader reader, XMLEventWriter writer) throws XMLStreamException {
+    /**
+     * Reads events for a single record from the XMLEventReader, writes them to the XMLStreamWriter
+     * (preserving namespaces), and extracts the PPN value (field 003@, subfield 0).
+     * Assumes the reader is positioned at the start of the record element.
+     * Consumes events until the end of the record element is reached.
+     *
+     * @param reader The event reader, positioned at the start of a record.
+     * @param writer The stream writer to output the record's XML fragment.
+     * @return The extracted PPN value, or null if not found.
+     * @throws XMLStreamException If an XML processing error occurs.
+     */
+    private String extractPpnAndWriteEvents(XMLEventReader reader, XMLStreamWriter writer) throws XMLStreamException {
         String ppn = null;
-        int depth = 0; // Track depth within the record element
+        int depth = 0;
+        boolean inRecord = false;
         boolean inPpnDatafield = false;
         boolean inPpnSubfield = false;
 
         while (reader.hasNext()) {
-            XMLEvent event = reader.nextEvent();
-            writer.add(event); // Write every event to the buffer
+            XMLEvent event = reader.peek(); // Peek to check without consuming yet
 
-            if (event.isStartElement()) {
-                depth++;
-                StartElement startElement = event.asStartElement();
-                // Check if we are entering the PPN datafield (003@) at the correct depth (level 2 inside record)
-                if (depth == 2 && isStartElement(event, DATAFIELD_ELEMENT)) {
-                    Attribute tagAttr = startElement.getAttributeByName(TAG_ATTRIBUTE);
-                    if (tagAttr != null && PPN_TAG.equals(tagAttr.getValue())) {
-                        inPpnDatafield = true;
+            // Stop if we peek past the end of the record element (depth becomes negative or element mismatch)
+            if (inRecord && depth <= 0 && event.isEndElement() && !event.asEndElement().getName().equals(RECORD_ELEMENT)) {
+                 log.warn("Unexpected state: Peeked end element {} while expecting end of record.", event.asEndElement().getName());
+                 break; // Avoid consuming past the record boundary
+            }
+            if (inRecord && depth == 0 && !event.isEndElement()) {
+                 log.warn("Unexpected state: Peeked event {} after record start but before record end.", event);
+                 break; // Should be the end element here
+            }
+
+
+            // Now consume the event
+            event = reader.nextEvent();
+
+            // Write event to XMLStreamWriter
+            switch (event.getEventType()) {
+                case XMLEvent.START_ELEMENT:
+                    depth++;
+                    StartElement startElement = event.asStartElement();
+                    QName name = startElement.getName();
+
+                    // Write Start Element with Namespace Handling
+                    String prefix = name.getPrefix();
+                    String nsURI = name.getNamespaceURI();
+                    String localPart = name.getLocalPart();
+
+                    if (prefix != null && !prefix.isEmpty()) {
+                        writer.writeStartElement(prefix, localPart, nsURI);
+                    } else if (nsURI != null && !nsURI.isEmpty()) {
+                        // Handle default namespace
+                        writer.setDefaultNamespace(nsURI); // Ensure default is set for this scope
+                        writer.writeStartElement(localPart); // Write element in default NS
+                        // Explicitly declare default NS only on the root element of the fragment?
+                        if (depth == 1 && name.equals(RECORD_ELEMENT)) {
+                             writer.writeDefaultNamespace(nsURI);
+                             inRecord = true; // Mark that we are inside the record
+                        }
+                    } else {
+                        // No prefix, no namespace URI
+                        writer.writeStartElement(localPart);
                     }
-                }
-                // Check if we are entering the PPN subfield ($0) inside the PPN datafield
-                else if (depth == 3 && inPpnDatafield && isStartElement(event, SUBFIELD_ELEMENT)) {
-                    Attribute codeAttr = startElement.getAttributeByName(CODE_ATTRIBUTE);
-                    if (codeAttr != null && PPN_CODE.equals(codeAttr.getValue())) {
-                        inPpnSubfield = true;
+
+
+                    // Write Namespace Declarations defined on this element
+                    java.util.Iterator nsIter = startElement.getNamespaces();
+                    while (nsIter.hasNext()) {
+                        javax.xml.stream.events.Namespace ns = (javax.xml.stream.events.Namespace) nsIter.next();
+                        if (ns.isDefaultNamespaceDeclaration()) {
+                            // Already handled above for the element itself if needed
+                            // Re-declaring might be redundant/handled by writer, but can be explicit:
+                             if (depth > 1 || !name.equals(RECORD_ELEMENT)) // Avoid double declaration on root
+                                writer.writeDefaultNamespace(ns.getNamespaceURI());
+                        } else {
+                            writer.writeNamespace(ns.getPrefix(), ns.getNamespaceURI());
+                        }
                     }
-                }
-            } else if (event.isCharacters() && inPpnSubfield) {
-                // Found the PPN value
-                ppn = event.asCharacters().getData();
-                // Reset flags immediately after capturing PPN to avoid capturing subsequent text nodes
-                inPpnSubfield = false;
-            } else if (event.isEndElement()) {
-                 // Check if we are leaving the PPN subfield
-                if (depth == 3 && inPpnSubfield) { // Should have been reset by Characters, but good for safety
-                    inPpnSubfield = false;
-                }
-                 // Check if we are leaving the PPN datafield
-                else if (depth == 2 && inPpnDatafield) {
-                    inPpnDatafield = false;
-                }
-                depth--;
-                // If we reached the end of the record element, stop processing this record
-                if (depth == 0 && event.asEndElement().getName().equals(RECORD_ELEMENT)) {
+
+                    // Write Attributes
+                    java.util.Iterator attrIter = startElement.getAttributes();
+                    while (attrIter.hasNext()) {
+                        Attribute attr = (Attribute) attrIter.next();
+                        QName attrName = attr.getName();
+                        String attrPrefix = attrName.getPrefix();
+                        String attrNsURI = attrName.getNamespaceURI();
+                        String attrLocalPart = attrName.getLocalPart();
+                        String attrValue = attr.getValue();
+
+                        if (attrPrefix != null && !attrPrefix.isEmpty()) {
+                            writer.writeAttribute(attrPrefix, attrNsURI, attrLocalPart, attrValue);
+                        } else if (attrNsURI != null && !attrNsURI.isEmpty()) {
+                            // Attribute has namespace but no prefix (shouldn't happen for valid XML?)
+                            writer.writeAttribute(attrNsURI, attrLocalPart, attrValue);
+                        } else {
+                            // No prefix, no namespace URI
+                            writer.writeAttribute(attrLocalPart, attrValue);
+                        }
+                    }
+
+                    // PPN Logic - Check element *after* writing it
+                    if (depth == 2 && name.equals(DATAFIELD_ELEMENT)) {
+                        Attribute tagAttr = startElement.getAttributeByName(TAG_ATTRIBUTE);
+                        if (tagAttr != null && PPN_TAG.equals(tagAttr.getValue())) {
+                            inPpnDatafield = true;
+                        }
+                    } else if (depth == 3 && inPpnDatafield && name.equals(SUBFIELD_ELEMENT)) {
+                        Attribute codeAttr = startElement.getAttributeByName(CODE_ATTRIBUTE);
+                        if (codeAttr != null && PPN_CODE.equals(codeAttr.getValue())) {
+                            inPpnSubfield = true;
+                        }
+                    }
                     break;
-                }
-            } else if (event.isEndDocument()) {
-                // Should not happen if called per record, but safety break
-                break;
+
+                case XMLEvent.END_ELEMENT:
+                     writer.writeEndElement();
+                     QName endName = event.asEndElement().getName();
+
+                     // PPN Logic - Update state *after* writing end element
+                     if (depth == 3 && inPpnSubfield && endName.equals(SUBFIELD_ELEMENT)) {
+                         inPpnSubfield = false; // Reset here
+                     } else if (depth == 2 && inPpnDatafield && endName.equals(DATAFIELD_ELEMENT)) {
+                         inPpnDatafield = false;
+                     }
+                     depth--;
+
+                     // Check if this is the end of the record element
+                     if (depth == 0 && endName.equals(RECORD_ELEMENT)) {
+                         writer.flush(); // Flush before returning
+                         return ppn; // Exit method successfully
+                     }
+                     break;
+
+                case XMLEvent.CHARACTERS:
+                    String text = event.asCharacters().getData();
+                    writer.writeCharacters(text);
+                    // PPN Logic - Capture PPN *after* writing characters
+                    if (inPpnSubfield) {
+                        // Append in case PPN is split across multiple character events (unlikely but possible)
+                        ppn = (ppn == null) ? text : ppn + text;
+                    }
+                    break;
+
+                case XMLEvent.COMMENT:
+                    writer.writeComment(event.asComment().getText());
+                    break;
+
+                case XMLEvent.CDATA:
+                    writer.writeCData(event.asCharacters().getData());
+                     if (inPpnSubfield) { // Also capture PPN from CDATA?
+                         String cdataText = event.asCharacters().getData();
+                         ppn = (ppn == null) ? cdataText : ppn + cdataText;
+                     }
+                    break;
+
+                // Handle other event types if necessary
+                case XMLEvent.START_DOCUMENT: // Ignore in fragment
+                case XMLEvent.END_DOCUMENT:   // Ignore in fragment
+                case XMLEvent.PROCESSING_INSTRUCTION:
+                case XMLEvent.DTD:
+                case XMLEvent.ENTITY_REFERENCE:
+                case XMLEvent.ATTRIBUTE: // Handled within START_ELEMENT
+                case XMLEvent.NAMESPACE: // Handled within START_ELEMENT
+                    // Ignore or handle as needed
+                    break;
+
+                default:
+                    log.trace("Ignoring unhandled event type: {}", event.getEventType());
+                    break;
             }
         }
-        writer.flush(); // Ensure buffer is written
+
+        // Should have exited via END_ELEMENT of record if successful
+        log.warn("Record processing finished unexpectedly (end of input reached before record end?). PPN found: {}", ppn);
+        writer.flush(); // Final flush
         return ppn;
     }
 
