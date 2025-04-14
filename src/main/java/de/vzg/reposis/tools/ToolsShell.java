@@ -57,14 +57,14 @@ public class ToolsShell {
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                // Handle the specific line terminator for this format
-                if (line.endsWith(String.valueOf(LINE_TERMINATOR))) {
-                    line = line.substring(0, line.length() - 1);
-                } else if (!line.isEmpty()) {
-                    // Only warn if the line isn't empty and doesn't have the terminator
-                     System.err.println("Warning: Line " + lineNumber + " does not end with expected terminator (\\u001E). Processing anyway.");
+                // Handle the specific line separator at the beginning of the line
+                if (line.startsWith(String.valueOf(LINE_TERMINATOR))) {
+                    line = line.substring(1);
+                } else if (!line.trim().isEmpty()) {
+                    // Only warn if a non-empty, non-blank line doesn't start with the separator
+                    // Blank lines separating records won't have the separator.
+                    System.err.println("Warning: Line " + lineNumber + " does not start with expected separator (\\u001E). Processing anyway: " + line);
                 }
-
 
                 if (line.trim().isEmpty()) {
                     // Blank line indicates end of a record
