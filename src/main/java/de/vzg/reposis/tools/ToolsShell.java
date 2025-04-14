@@ -86,33 +86,30 @@ public class ToolsShell {
                         PicaField field = new PicaField(tag, occurrence);
 
                         // Split value part into subfields using SUBFIELD_SEPARATOR
+                        // Example valuePart: "aSubfield A value\u001F9Subfield 9 value"
                         String[] subfieldParts = valuePart.split(String.valueOf(SUBFIELD_SEPARATOR));
 
                         for (String part : subfieldParts) {
-                            if (part.length() >= 2 && part.charAt(0) == '$') {
-                                char subfieldCode = part.charAt(1);
-                                String subfieldValue = part.substring(2);
-                                field.addSubfield(new PicaSubfield(subfieldCode, subfieldValue));
-                            } else if (!part.isEmpty()) {
-                                // Handle case where the first part before any '$' might be considered a default subfield (e.g., '$a')
-                                // Or treat it as value without subfield code if no '$' is present at all.
-                                // For simplicity, let's assume standard PICA where value starts with $ or is empty.
-                                // If the first part doesn't start with '$', it might be data without a subfield marker
-                                // or part of the previous subfield if the split was incorrect.
-                                // Let's add it as a subfield with a placeholder code ' ' if it's the only part.
-                                if (subfieldParts.length == 1 && !part.isEmpty()) {
-                                     field.addSubfield(new PicaSubfield(' ', part)); // Or handle as error/warning
-                                     System.err.println("Warning: Line " + lineNumber + ": Field value part does not start with '$': '" + part + "'");
-                                } else if (part.length() >=1 && part.charAt(0) != '$') {
-                                     // This case happens if the value itself contains the subfield separator char, which is unlikely but possible.
-                                     // Or if the first part has no code.
-                                     System.err.println("Warning: Line " + lineNumber + ": Unexpected subfield part format: '" + part + "'");
+                            // Expecting format like "aValue" or "9Value" after splitting
+                            if (part.length() >= 1) { // Need at least one character for the code
+                                char subfieldCode = part.charAt(0);
+                                String subfieldValue = "";
+                                if (part.length() > 1) {
+                                    // Get the rest of the string as value
+                                    subfieldValue = part.substring(1);
                                 }
+                                // Add the extracted subfield
+                                field.addSubfield(new PicaSubfield(subfieldCode, subfieldValue));
+                            } else if (!part.isEmpty()){
+                                // This case might occur if there are consecutive separators, e.g., "\u001F\u001F"
+                                // or if the value part ends with a separator.
+                                System.err.println("Warning: Line " + lineNumber + ": Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'");
                             }
+                            // If part is completely empty (e.g., from splitting ""), do nothing.
                         }
                         currentRecord.addField(field);
                     } else {
-                        System.err.println("Warning: Line " + lineNumber + " could not be parsed as a PICA field: " + line);
+                        System.err.println("Warning: Line " + lineNumber + " could not be parsed as a PICA field: '" + line + "'");
                     }
                 }
             }
