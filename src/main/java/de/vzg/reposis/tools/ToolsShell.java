@@ -65,16 +65,21 @@ public class ToolsShell {
                     continue; // Move to the next line
                 }
 
+                String originalLineForWarning = line; // Keep original for potential warning messages
+                boolean separatorFound = false;
+
                 // Handle the specific line separator at the beginning of the line
                 if (line.startsWith(String.valueOf(LINE_TERMINATOR))) {
                     line = line.substring(1);
-                } else if (!line.trim().isEmpty()) {
-                    // Only warn if a non-empty, non-blank line doesn't start with the separator
-                    // Blank lines separating records won't have the separator.
-                    System.err.println("Warning: Line " + lineNumber + " does not start with expected separator (\\u001E). Processing anyway: " + line);
+                    separatorFound = true;
                 }
 
-                if (line.trim().isEmpty()) {
+                // Trim the line *after* potentially removing the separator
+                // This helps remove leading/trailing whitespace including potentially problematic ones like U+2028
+                line = line.trim();
+
+                // Check for blank lines *after* trimming
+                if (line.isEmpty()) {
                     // Blank line indicates end of a record
                     if (inRecord) {
                         if (!currentRecord.getFields().isEmpty()) {
@@ -83,8 +88,20 @@ public class ToolsShell {
                         currentRecord = new PicaRecord();
                         inRecord = false;
                     }
+                    // If the line was *not* empty before trimming but *is* empty now,
+                    // and it didn't have the separator, issue the warning using the original line.
+                    else if (!separatorFound && !originalLineForWarning.trim().isEmpty()) {
+                         System.err.println("Warning: Line " + lineNumber + " does not start with expected separator (\\u001E) and contains only whitespace. Original: '" + originalLineForWarning + "'");
+                    }
+                    // Otherwise, it was a legitimate blank line separator or became blank after removing \u001E and trimming, which is fine.
                 } else {
+                     // If the line is not blank after trimming, but didn't have the separator, issue warning.
+                     if (!separatorFound) {
+                         System.err.println("Warning: Line " + lineNumber + " does not start with expected separator (\\u001E). Processing anyway: '" + originalLineForWarning + "'");
+                     }
+
                     inRecord = true;
+                    // Use the trimmed line for matching
                     Matcher matcher = FIELD_PATTERN.matcher(line);
                     if (matcher.matches()) {
                         String tag = matcher.group(1);
@@ -117,6 +134,7 @@ public class ToolsShell {
                         }
                         currentRecord.addField(field);
                     } else {
+                        // Use the *trimmed* line in the warning here, as that's what failed matching
                         System.err.println("Warning: Line " + lineNumber + " could not be parsed as a PICA field: '" + line + "'");
                     }
                 }
