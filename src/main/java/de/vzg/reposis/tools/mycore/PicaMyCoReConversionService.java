@@ -182,7 +182,6 @@ public class PicaMyCoReConversionService {
                 // but creating a new one per record or clearing is safer.
                 transformer.clearParameters();
 
-            }
         } // End of loop over map entries
 
         // 8. Save ID Mapper if changed
