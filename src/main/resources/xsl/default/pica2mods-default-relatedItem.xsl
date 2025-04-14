@@ -213,7 +213,7 @@
         <xsl:if test="$relatedPPN">
             <xsl:choose>
                 <xsl:when test="$pica0500_2='s'">
-                <mods:relatedItem>
+                    <!-- Removed duplicate outer mods:relatedItem tag -->
                     <mods:relatedItem temp:relatedPPN="{$relatedPPN}">
                         <xsl:attribute name="otherType">appears_in</xsl:attribute>
                         <xsl:attribute name="type">host</xsl:attribute>
