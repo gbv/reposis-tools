@@ -65,7 +65,19 @@ public class PicaMyCoReConversionService {
         inputFactory.setProperty(XMLInputFactory.SUPPORT_DTD, Boolean.FALSE);
         inputFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, Boolean.FALSE);
 
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        // Explicitly request the Saxon-HE TransformerFactory implementation
+        String saxonFactoryClass = "net.sf.saxon.TransformerFactoryImpl";
+        TransformerFactory transformerFactory;
+        try {
+            // Try to get the Saxon-HE factory
+            transformerFactory = TransformerFactory.newInstance(saxonFactoryClass, null);
+            log.info("Using Saxon-HE TransformerFactory: {}", saxonFactoryClass);
+        } catch (TransformerFactoryConfigurationError e) {
+            log.warn("Could not instantiate specific Saxon-HE TransformerFactory ('{}'). Falling back to default JAXP lookup. Error: {}", saxonFactoryClass, e.getMessage());
+            // Fallback to default mechanism if Saxon is not found
+            transformerFactory = TransformerFactory.newInstance();
+        }
+
         // Secure processing
         try {
             transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
