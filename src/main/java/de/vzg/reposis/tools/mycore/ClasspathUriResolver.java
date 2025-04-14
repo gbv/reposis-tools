@@ -98,23 +98,28 @@ public class ClasspathUriResolver implements URIResolver {
                                     log.debug("Returning XML for PPN {}: {}...", ppn, recordXml.substring(0, logLength).replace('\n', ' '));
                                     // Return the found record XML as a StreamSource
                                     return new StreamSource(new StringReader(recordXml), href); // Use href as systemId
-                                } else {
+                                } else { // Corresponds to if (recordElement != null)
                                     log.warn("Could not find PICA record for PPN {} in pre-parsed map.", ppn);
                                     // Returning null seems safer to indicate resource not found.
                                     return null;
                                 }
-                            } else {
+                            } else { // Corresponds to if (this.ppnToRecordMap != null)
                                 log.warn("Received UNAPI request for PPN {}, but no PPN-to-Record map was configured.", ppn);
                                 return null; // Cannot fulfill request
                             }
-                        }
-                        }
-                    }
-                }
+                        } // Corresponds to if (ppnMatcher.find())
+                    } // Corresponds to if ("picaxml".equalsIgnoreCase(format) && id != null)
+                } // Corresponds to if (UNAPI_HOST.equalsIgnoreCase(url.getHost()))
             } catch (Exception e) { // Catch MalformedURLException, IOException, etc.
                 log.error("Error processing allowed UNAPI request '{}': {}", href, e.getMessage(), e);
-                // Fall through to standard resolution, though this likely indicates an issue
+                // Return null on error during UNAPI processing to prevent fallback
+                return null;
             }
+            // If UNAPI processing completed but didn't return a Source (e.g., PPN not found), return null.
+            // This prevents falling through to classpath resolution for failed UNAPI lookups.
+            log.trace("UNAPI request for '{}' processed but did not yield a result (e.g., PPN not found).", href);
+            return null;
+
         } else if (href != null && (href.startsWith("http://") || href.startsWith("https://"))) {
             // 2. Block other HTTP/HTTPS requests
             log.warn("Blocked external HTTP/HTTPS request from XSLT: {}", href);
