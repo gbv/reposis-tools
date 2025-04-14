@@ -37,7 +37,7 @@ public class PicaMyCoReConversionService {
     private static final QName CODE_ATTRIBUTE = new QName("code");
     private static final String PPN_TAG = "003@";
     private static final String PPN_CODE = "0";
-    private static final String XSLT_PATH = "/xsl/pica2mods/pica2mods.xsl"; // Default classpath location
+    private static final String XSLT_PATH = "/xsl/pica2mods.xsl"; // Default classpath location
     private static final String XSLT_PARAM_OBJECT_ID = "ObjectID"; // Assumed parameter name
 
     public void convertPicaXmlToMyCoRe(Path inputPath, Path outputDir, Path idMapperPath, String idBase) throws IOException, XMLStreamException, TransformerException {
@@ -308,13 +308,3 @@ public class PicaMyCoReConversionService {
         }
     }
 }
-```
-
-**Step 2: Update `ToolsShell.java` to use the new service.**
-
-```
-src/main/java/de/vzg/reposis/tools/ToolsShell.java
-<<<<<<< SEARCH
-import de.vzg.reposis.tools.pica.PicaConversionService;
-import org.springframework.shell.standard.ShellComponent;
-import org.springframework.shell.standard.ShellMethod;
