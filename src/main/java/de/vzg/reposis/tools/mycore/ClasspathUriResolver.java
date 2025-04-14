@@ -336,7 +336,7 @@ public class ClasspathUriResolver implements URIResolver {
                     }
                      // Write default namespace if present on record element
                     if (depth == 1 && name.equals(RECORD_ELEMENT)) {
-                        String defaultNs = name.getNamespaceURI(null); // Check if default NS is declared
+                        String defaultNs = name.getNamespaceURI(); // Get the element's namespace URI
                         if(defaultNs != null && !defaultNs.isEmpty()){
                              writer.writeDefaultNamespace(defaultNs);
                         }
