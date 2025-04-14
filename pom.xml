@@ -48,6 +48,11 @@
 			<version>2.11</version>
 		</dependency>
 
+		<dependency>
+			<groupId>org.jdom</groupId>
+			<artifactId>jdom2</artifactId>
+		</dependency>
+
 		<!-- Saxon-HE dependency for XSLT 2.0/3.0 processing -->
 		<dependency>
 			<groupId>net.sf.saxon</groupId>
