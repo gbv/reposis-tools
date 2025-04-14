@@ -56,11 +56,12 @@ public class PicaConversionService {
         int recordNumber = 0;
         for (String recordBlock : recordBlocks) {
             recordNumber++;
-            String trimmedRecordBlock = recordBlock.trim(); // Trim whitespace around the record block
+            // String trimmedRecordBlock = recordBlock.trim(); // Trim whitespace around the record block - REMOVED
 
             // Skip empty blocks resulting from split (e.g., file starting/ending with separator)
-            if (trimmedRecordBlock.isEmpty()) {
-                System.out.println("Info: Skipping empty record block (Record #" + recordNumber + ")");
+            // Use isBlank() to check if the original block was empty or just whitespace
+            if (recordBlock.isBlank()) {
+                System.out.println("Info: Skipping empty or blank record block (Record #" + recordNumber + ")");
                 continue;
             }
 
@@ -69,7 +70,8 @@ public class PicaConversionService {
             int lineNumberInRecord = 0;
 
             // Split the record block into lines based on newline character
-            String[] lines = trimmedRecordBlock.split("\n");
+            // Use the original recordBlock here
+            String[] lines = recordBlock.split("\n");
 
             for (String line : lines) {
                 lineNumberInRecord++;
