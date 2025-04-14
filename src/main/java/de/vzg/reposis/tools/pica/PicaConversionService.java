@@ -73,25 +73,26 @@ public class PicaConversionService {
 
             for (String line : lines) {
                 lineNumberInRecord++;
-                String trimmedLine = line.trim(); // Trim leading/trailing whitespace from the line
 
-                // Skip empty lines within a record block
-                if (trimmedLine.isEmpty()) {
+                // DO NOT trim the line yet, as trim() removes the FIELD_INTRODUCER (\u001E)
+                if (line == null || line.isEmpty()) { // Check for null or truly empty lines first
                     continue;
                 }
 
-                // Skip comment lines starting with #
-                if (trimmedLine.startsWith("#")) {
-                    System.out.println("Info: Skipping comment (Record #" + recordNumber + ", Line " + lineNumberInRecord + "): " + trimmedLine);
-                    continue;
-                }
+                // Check if the raw line starts with the FIELD_INTRODUCER (\u001E)
+                if (line.charAt(0) == FIELD_INTRODUCER) {
+                    // Remove the introducer character first
+                    String fieldDataWithPotentialWhitespace = line.substring(1);
+                    // NOW trim whitespace before matching the pattern
+                    String fieldData = fieldDataWithPotentialWhitespace.trim();
 
-                // Check if the line starts with the FIELD_INTRODUCER (\u001E)
-                if (trimmedLine.length() > 0 && trimmedLine.charAt(0) == FIELD_INTRODUCER) {
-                    // Remove the introducer character before parsing
-                    String fieldData = trimmedLine.substring(1);
+                    // Skip if the line only contained the introducer and whitespace
+                    if (fieldData.isEmpty()) {
+                         System.out.println("Info: Skipping line with only Field Introducer and whitespace (Record #" + recordNumber + ", Line " + lineNumberInRecord + ")");
+                         continue;
+                    }
 
-                    // Now, parse the remaining part which should be the PICA field
+                    // Now, parse the trimmed remaining part which should be the PICA field
                     Matcher matcher = FIELD_PATTERN.matcher(fieldData);
                     if (matcher.matches()) {
                         String tag = matcher.group(1);
@@ -101,10 +102,23 @@ public class PicaConversionService {
                         PicaField field = new PicaField(tag, occurrence);
 
                         // Split value part into subfields using SUBFIELD_SEPARATOR (\u001F)
+                        // We do NOT trim subfield parts here, as leading/trailing spaces might be significant within values
                         String[] subfieldParts = valuePart.split(String.valueOf(SUBFIELD_SEPARATOR));
 
                         for (String part : subfieldParts) {
-                            // Expecting format like "aValue" or "9Value" after splitting
+                            // Expecting format like "$aValue" or "$9Value" after splitting
+                            // The first character is the subfield code separator '$' which is part of the valuePart matched by regex group 3
+                            // Correction: The documentation says \u001F is the separator, not '$'.
+                            // The regex captures everything after TAG[/OCC]\s+ as group 3.
+                            // This group 3 starts directly with the first subfield code if \u001F is used correctly.
+                            // Example: \u001E021A $aValue\u001F$bOther -> valuePart = "$aValue\u001F$bOther" -> WRONG ASSUMPTION
+                            // Example according to spec: \u001E021A aValue\u001FbOther -> valuePart = "aValue\u001FbOther"
+                            // Example from user: 047I  aCet article... -> valuePart = " aCet article..." (Note leading space)
+
+                            // Let's re-evaluate the split and subfield extraction
+                            // If valuePart = " aValue\u001FbOther"
+                            // split by \u001F gives [" aValue", "bOther"]
+
                             if (part.length() >= 1) { // Need at least one character for the code
                                 char subfieldCode = part.charAt(0);
                                 String subfieldValue = "";
@@ -112,6 +126,7 @@ public class PicaConversionService {
                                     // Get the rest of the string as value
                                     subfieldValue = part.substring(1);
                                 }
+                                // Add the extracted subfield. Value might contain leading/trailing spaces from original data.
                                 field.addSubfield(new PicaSubfield(subfieldCode, subfieldValue));
                             } else if (!part.isEmpty()) {
                                 // This case might occur if there are consecutive separators, e.g., "\u001F\u001F"
@@ -122,11 +137,23 @@ public class PicaConversionService {
                         }
                         currentRecord.addField(field);
                     } else {
-                        // The line started with \u001E but didn't match the field pattern
-                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed as a PICA field: '" + fieldData + "'");
+                        // The line started with \u001E but didn't match the field pattern after trimming
+                        System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " started with Field Introducer but could not be parsed as a PICA field after trimming: '" + fieldData + "'");
                     }
                 } else {
-                    // Line does not start with the expected Field Introducer
+                    // Line does not start with the expected Field Introducer.
+                    // Trim now before checking for comments or issuing warning.
+                    String trimmedLine = line.trim();
+                    if (trimmedLine.isEmpty()) {
+                        // Was just whitespace, ignore.
+                        continue;
+                    }
+                    // Skip comment lines starting with #
+                    if (trimmedLine.startsWith("#")) {
+                        System.out.println("Info: Skipping comment (Record #" + recordNumber + ", Line " + lineNumberInRecord + "): " + trimmedLine);
+                        continue;
+                    }
+                    // If it's not empty, not a comment, and didn't start with \u001E, it's an error.
                     System.err.println("Warning: Record #" + recordNumber + ", Line " + lineNumberInRecord + " does not start with the PICA Field Introducer (\\u001E): '" + trimmedLine + "'");
                 }
             } // End of loop over lines in record
