@@ -39,6 +39,38 @@ public class PicaConversionService {
         System.out.println("Successfully wrote formatted PICA XML to: " + outputPath);
     }
 
+    /**
+     * Counts line breaks (\n, \r, \r\n) in a string.
+     * This helps approximate original line numbers when the input was read differently.
+     * Does not count LSEP, PS, NEL etc. as breaks here.
+     * @param text The string to check.
+     * @return The number of line breaks found.
+     */
+    private int countLineBreaks(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int lineBreaks = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n') {
+                lineBreaks++;
+            } else if (c == '\r') {
+                // Check if next char is \n (CRLF)
+                if (i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                    // Count CRLF as one break, skip the LF
+                    lineBreaks++;
+                    i++;
+                } else {
+                    // Count CR as one break
+                    lineBreaks++;
+                }
+            }
+        }
+        return lineBreaks;
+    }
+
+
     private List<PicaRecord> parsePicaRecords(Path inputPath) throws IOException {
         List<PicaRecord> records = new ArrayList<>();
         PicaRecord currentRecord = null; // Initialize as null, create when first field or 003@ is found
@@ -52,19 +84,40 @@ public class PicaConversionService {
         // The -1 limit ensures trailing empty strings are kept if needed, though we trim later.
         String[] fieldLines = content.split(String.valueOf(LINE_TERMINATOR), -1);
 
-        int effectiveLineNumber = 0; // To track the logical field number for warnings
-        for (String line : fieldLines) {
-            effectiveLineNumber++;
-            String trimmedLine = line.trim(); // Trim whitespace from the potential field line
+        int effectiveFieldNumber = 0; // To track the logical field number for warnings
+        int currentOriginalLineNumber = 1; // Tracks the starting line number of the current segment
+
+        for (int i = 0; i < fieldLines.length; i++) {
+            String segment = fieldLines[i];
+            int segmentStartLineNumber = currentOriginalLineNumber; // Line number where this segment starts
+
+            // Calculate line breaks within this segment *before* trimming
+            int breaksInSegment = countLineBreaks(segment);
+
+            String trimmedLine = segment.trim(); // Trim whitespace from the potential field line
 
             // Skip empty lines resulting from split (e.g., file starting/ending with \u001E)
+            // or lines that become empty after trimming.
             if (trimmedLine.isEmpty()) {
-                continue;
+                // Update line number even for skipped empty segments
+                currentOriginalLineNumber += breaksInSegment;
+                if (i < fieldLines.length - 1) { // Add 1 for the delimiter \u001E unless it's the last segment
+                    currentOriginalLineNumber++; // Assuming \u001E itself doesn't contain \n or \r
+                }
+                continue; // Skip processing this empty segment
             }
+
+            // Increment field number only for non-empty, non-comment lines processed
+            effectiveFieldNumber++;
 
             // Skip comment/metadata lines starting with ##
             if (trimmedLine.startsWith("##")) {
-                System.out.println("Info: Skipping metadata/comment line " + effectiveLineNumber + ": " + trimmedLine);
+                System.out.println("Info: Skipping metadata/comment line ~" + segmentStartLineNumber + " (Field " + effectiveFieldNumber + "): " + trimmedLine);
+                // Update line number count after skipping
+                currentOriginalLineNumber += breaksInSegment;
+                if (i < fieldLines.length - 1) {
+                    currentOriginalLineNumber++;
+                }
                 continue;
             }
 
@@ -86,14 +139,19 @@ public class PicaConversionService {
                 } else if (currentRecord == null) {
                     // If we encounter a non-003@ field and have no current record,
                     // create one, but maybe warn that the file didn't start as expected.
-                    System.err.println("Warning: Field " + effectiveLineNumber + " (Tag: " + tag + ") encountered before the first record-starting field (e.g., 003@). Starting a new record implicitly.");
+                    System.err.println("Warning: Line ~" + segmentStartLineNumber + " (Field " + effectiveFieldNumber + ", Tag: " + tag + ") encountered before the first record-starting field (e.g., 003@). Starting a new record implicitly.");
                     currentRecord = new PicaRecord();
                 }
 
                 // If currentRecord is still null here, something is wrong (should have been created)
                 // This check prevents NullPointerException if the logic above fails.
                 if (currentRecord == null) {
-                     System.err.println("Error: Internal state error - currentRecord is null at line " + effectiveLineNumber + ". Skipping field.");
+                     System.err.println("Error: Internal state error - currentRecord is null at Line ~" + segmentStartLineNumber + " (Field " + effectiveFieldNumber + "). Skipping field.");
+                     // Update line number count before skipping
+                     currentOriginalLineNumber += breaksInSegment;
+                     if (i < fieldLines.length - 1) {
+                         currentOriginalLineNumber++;
+                     }
                      continue; // Skip this field
                 }
 
@@ -117,16 +175,22 @@ public class PicaConversionService {
                     } else if (!part.isEmpty()) {
                         // This case might occur if there are consecutive separators, e.g., "\u001F\u001F"
                         // or if the value part ends with a separator.
-                        System.err.println("Warning: Field " + effectiveLineNumber + ": Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'");
+                        System.err.println("Warning: Line ~" + segmentStartLineNumber + " (Field " + effectiveFieldNumber + "): Encountered unexpected empty subfield part after splitting in value: '" + valuePart + "'");
                     }
                     // If part is completely empty (e.g., from splitting ""), do nothing.
                 }
                 currentRecord.addField(field);
             } else {
-                // Use the trimmed line in the warning here, as that's what failed matching
-                System.err.println("Warning: Field " + effectiveLineNumber + " could not be parsed as a PICA field: '" + trimmedLine + "'");
+                // Use the approximate line number in the warning here, as that's what failed matching
+                System.err.println("Warning: Line ~" + segmentStartLineNumber + " (Field " + effectiveFieldNumber + ") could not be parsed as a PICA field: '" + trimmedLine + "'");
             }
-        }
+
+            // Update line number count for the next segment
+            currentOriginalLineNumber += breaksInSegment;
+            if (i < fieldLines.length - 1) { // Add 1 for the delimiter \u001E
+                currentOriginalLineNumber++;
+            }
+        } // End of loop over fieldLines
 
         // Add the last record if it exists and has fields
         if (currentRecord != null && !currentRecord.getFields().isEmpty()) {
