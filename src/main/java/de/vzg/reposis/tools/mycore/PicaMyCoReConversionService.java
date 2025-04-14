@@ -55,6 +55,7 @@ public class PicaMyCoReConversionService {
     private static final Namespace XLINK_NS = Namespace.getNamespace("xlink", "http://www.w3.org/1999/xlink");
     private static final Namespace MODS_NS = Namespace.getNamespace("mods", "http://www.loc.gov/mods/v3");
 
+    private static final int LOG_INTERVAL = 1000; // Log progress every 1000 records
 
     // XPath expressions for JDOM
     private static final XPathFactory XPATH_FACTORY = XPathFactory.instance();
