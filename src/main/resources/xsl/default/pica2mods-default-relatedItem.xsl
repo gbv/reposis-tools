@@ -128,129 +128,100 @@
                     <mods:part>
                         <!-- set order attribute only if value of subfield $X is a number -->
                         <xsl:if test="./p:subfield[@code='X']">
-                    <xsl:attribute name="type">host</xsl:attribute>
-                </xsl:when>
-                <xsl:when test="./@tag='036D'"> <!-- 4160  Mehrbändiges Werk -->
-                    <xsl:attribute name="type">host</xsl:attribute>
-                </xsl:when>
-                <xsl:when test="./@tag='036E'"> <!-- 4170  fortlaufende Resource -->
-                    <xsl:attribute name="type">series</xsl:attribute>
-                </xsl:when>
-                <xsl:when test="./@tag='036F' and $parentPica0500_2 = 'b'"> <!-- 4180  Zeitung / Zeitschrift-->
-                    <xsl:attribute name="type">host</xsl:attribute>
-                </xsl:when>
-                <xsl:when test="./@tag='036F' and $parentPica0500_2 = 'd'"> <!-- 4180  Schriftenreihe -->
-                    <xsl:attribute name="type">series</xsl:attribute>
-                </xsl:when>
-            </xsl:choose>
-            <xsl:attribute name="otherType">hierarchical</xsl:attribute>
+                            <xsl:choose>
+                                <!-- sort string contains 2 commas -->
+                                <xsl:when
+                                        test="string-length(./p:subfield[@code='X']) = string-length(translate(./p:subfield[@code='X'], ',','')) + 2">
+                                    <xsl:if test="number(translate(./p:subfield[@code='X'], ',',''))">
+                                        <xsl:attribute name="order">
+                                            <xsl:value-of select="format-number(number(translate(./p:subfield[@code='X'], ',','')), '#')" />
+                                        </xsl:attribute>
+                                    </xsl:if>
+                                </xsl:when>
+                                <xsl:when test="contains(./p:subfield[@code='X'], ',')">
+                                    <xsl:if test="number(substring-before(substring-before(./p:subfield[@code='X'], '.'), ','))">
+                                        <xsl:attribute name="order">
+                                            <xsl:value-of select="format-number(number(substring-before(substring-before(./p:subfield[@code='X'], '.'), ',')), '#')" />
+                                        </xsl:attribute>
+                                    </xsl:if>
+                                </xsl:when>
+                                <xsl:otherwise>
+                                    <xsl:if test="number(substring-before(./p:subfield[@code='X'], '.'))">
+                                        <xsl:attribute name="order">
+                                            <xsl:value-of select="format-number(number(substring-before(./p:subfield[@code='X'], '.')),'#')" />
+                                        </xsl:attribute>
+                                    </xsl:if>
+                                </xsl:otherwise>
+                            </xsl:choose>
+                        </xsl:if>
 
-            <xsl:choose>
-                <xsl:when test="$parent/*">
-                    <xsl:call-template name="parent_info">
-                        <xsl:with-param name="parent" select="$parent" />
-                    </xsl:call-template>
-                </xsl:when>
-                <xsl:otherwise>
-                    <xsl:call-template name="simple_title">
-                        <xsl:with-param name="datafield" select="." />
-                    </xsl:call-template>
-                </xsl:otherwise>
-            </xsl:choose>
-
-            <xsl:if test="../p:datafield[@tag='036C' or @tag='036D' or @tag='036E' or @tag='036F']">
-                <mods:part>
-                    <!-- set order attribute only if value of subfield $X is a number -->
-                    <xsl:if test="./p:subfield[@code='X']">
                         <xsl:choose>
-                            <!-- sort string contains 2 commas -->
-                            <xsl:when
-                                    test="string-length(./p:subfield[@code='X']) = string-length(translate(./p:subfield[@code='X'], ',','')) + 2">
-                                <xsl:if test="number(translate(./p:subfield[@code='X'], ',',''))">
-                                    <xsl:attribute name="order">
-                                        <xsl:value-of select="format-number(number(translate(./p:subfield[@code='X'], ',','')), '#')" />
-                                    </xsl:attribute>
-                                </xsl:if>
-                            </xsl:when>
-                            <xsl:when test="contains(./p:subfield[@code='X'], ',')">
-                                <xsl:if test="number(substring-before(substring-before(./p:subfield[@code='X'], '.'), ','))">
-                                    <xsl:attribute name="order">
-                                        <xsl:value-of select="format-number(number(substring-before(substring-before(./p:subfield[@code='X'], '.'), ',')), '#')" />
-                                    </xsl:attribute>
-                                </xsl:if>
+                            <xsl:when test="./p:subfield[@code='l' or @code='p'] or (../p:datafield[@tag='021A'] and (@tag='036C' or @tag='036D'))">
+                                <mods:detail type="volume">
+                                    <xsl:if test="./p:subfield[@code='l' or @code='p']">
+                                        <xsl:choose>
+                                            <xsl:when test="@tag='036F' and ../p:datafield[@tag='036E']">
+                                                <mods:number>
+                                                    <xsl:value-of select="string-join(../p:datafield[@tag='036E']/p:subfield[@code='l' or @code='p' or @code='m'], ', ')" />
+                                                </mods:number>
+                                                <xsl:comment>[alternativ aus 4180: <xsl:value-of select="./p:subfield[@code='l']" />]</xsl:comment>
+                                            </xsl:when>
+                                            <xsl:when test="@tag='036D' and ../p:datafield[@tag='036C']">
+                                                <mods:number>
+                                                    <xsl:value-of select="string-join(../p:datafield[@tag='036C']/p:subfield[@code='l' or @code='p' or @code='m'], ', ')" />
+                                                </mods:number>
+                                                <xsl:comment>[alternativ aus 4160: <xsl:value-of select="./p:subfield[@code='l']" />]</xsl:comment>
+                                            </xsl:when>
+                                            <xsl:otherwise>
+                                                <mods:number>
+                                                    <xsl:value-of select="string-join(./p:subfield[@code='l' or @code='p' or @code='m'], ', ')" />
+                                                </mods:number>
+                                            </xsl:otherwise>
+                                        </xsl:choose>
+                                    </xsl:if>
+                                    <xsl:if test="../p:datafield[@tag='021A'] and (@tag='036C' or @tag='036D')">
+                                        <!-- Title nur für MBW -->
+                                        <mods:title>
+                                            <xsl:value-of select="replace(string-join(../p:datafield[@tag='021A']/p:subfield[@code='a' or @code='d'], ' : '), '@', '')" />
+                                        </mods:title>
+                                    </xsl:if>
+                                </mods:detail>
                             </xsl:when>
                             <xsl:otherwise>
-                                <xsl:if test="number(substring-before(./p:subfield[@code='X'], '.'))">
-                                    <xsl:attribute name="order">
-                                        <xsl:value-of select="format-number(number(substring-before(./p:subfield[@code='X'], '.')),'#')" />
-                                    </xsl:attribute>
-                                </xsl:if>
+                                <mods:detail type="volume">
+                                    <mods:caption>[uncounted]</mods:caption>
+                                </mods:detail>
                             </xsl:otherwise>
                         </xsl:choose>
-                    </xsl:if>
 
-                    <xsl:choose>
-                        <xsl:when test="./p:subfield[@code='l' or @code='p'] or (../p:datafield[@tag='021A'] and (@tag='036C' or @tag='036D'))">
-                            <mods:detail type="volume">
-                                <xsl:if test="./p:subfield[@code='l' or @code='p']">
-                                    <xsl:choose>
-                                        <xsl:when test="@tag='036F' and ../p:datafield[@tag='036E']">
-                                            <mods:number>
-                                                <xsl:value-of select="string-join(../p:datafield[@tag='036E']/p:subfield[@code='l' or @code='p' or @code='m'], ', ')" />
-                                            </mods:number>
-                                            <xsl:comment>[alternativ aus 4180: <xsl:value-of select="./p:subfield[@code='l']" />]</xsl:comment>
-                                        </xsl:when>
-                                        <xsl:when test="@tag='036D' and ../p:datafield[@tag='036C']">
-                                            <mods:number>
-                                                <xsl:value-of select="string-join(../p:datafield[@tag='036C']/p:subfield[@code='l' or @code='p' or @code='m'], ', ')" />
-                                            </mods:number>
-                                            <xsl:comment>[alternativ aus 4160: <xsl:value-of select="./p:subfield[@code='l']" />]</xsl:comment>
-                                        </xsl:when>
-                                        <xsl:otherwise>
-                                            <mods:number>
-                                                <xsl:value-of select="string-join(./p:subfield[@code='l' or @code='p' or @code='m'], ', ')" />
-                                            </mods:number>
-                                        </xsl:otherwise>
-                                    </xsl:choose>
-                                </xsl:if>
-                                <xsl:if test="../p:datafield[@tag='021A'] and (@tag='036C' or @tag='036D')">
-                                    <!-- Title nur für MBW -->
-                                    <mods:title>
-                                        <xsl:value-of select="replace(string-join(../p:datafield[@tag='021A']/p:subfield[@code='a' or @code='d'], ' : '), '@', '')" />
-                                    </mods:title>
-                                </xsl:if>
-                            </mods:detail>
-                        </xsl:when>
-                        <xsl:otherwise>
-                            <mods:detail type="volume">
-                                <mods:caption>[uncounted]</mods:caption>
-                            </mods:detail>
-                        </xsl:otherwise>
-                    </xsl:choose>
-
-                    <xsl:if test="(@tag='036D' or @tag='036F') and ./p:subfield[@code='X']"> <!-- 4160, 4180 -->
-                        <mods:text type="sortstring">
-                            <xsl:value-of select="pica2mods:sortableSortstring(./p:subfield[@code='X'])" />
-                        </mods:text>
-                    </xsl:if>
-                </mods:part>
-            </xsl:if>
-        </mods:relatedItem>
+                        <xsl:if test="(@tag='036D' or @tag='036F') and ./p:subfield[@code='X']"> <!-- 4160, 4180 -->
+                            <mods:text type="sortstring">
+                                <xsl:value-of select="pica2mods:sortableSortstring(./p:subfield[@code='X'])" />
+                            </mods:text>
+                        </xsl:if>
+                    </mods:part>
+                </xsl:if>
+            </mods:relatedItem>
+        </xsl:if> <!-- End check for relatedPPN -->
     </xsl:template>
 
     <xsl:template name="COMMON_AppearsIn">
         <xsl:variable name="pica0500_2" select="substring(./../p:datafield[@tag='002@']/p:subfield[@code='0'],2,1)" />
-        <xsl:variable name="parent" select="pica2mods:queryPicaFromUnAPIWithPPN($MCR.PICA2MODS.DATABASE, ./p:subfield[@code='9'])" />
+        <!-- Get related PPN from subfield 9 -->
+        <xsl:variable name="relatedPPN" select="./p:subfield[@code='9']"/>
 
-        <xsl:choose>
-            <xsl:when test="$pica0500_2='s'">
+        <xsl:if test="$relatedPPN">
+            <xsl:choose>
+                <xsl:when test="$pica0500_2='s'">
                 <mods:relatedItem>
-                    <xsl:attribute name="otherType">appears_in</xsl:attribute>
-                    <xsl:attribute name="type">host</xsl:attribute>
-                    <mods:part>
-                        <xsl:for-each select="./../p:datafield[@tag='031A']"> <!-- 4070 Differenzierende Angaben zur Quelle -->
-                            <xsl:if test="./p:subfield[@code='d']">
-                                <mods:detail type="volume">
+                    <mods:relatedItem temp:relatedPPN="{$relatedPPN}">
+                        <xsl:attribute name="otherType">appears_in</xsl:attribute>
+                        <xsl:attribute name="type">host</xsl:attribute>
+                        <!-- Keep mods:part generation -->
+                        <mods:part>
+                            <xsl:for-each select="./../p:datafield[@tag='031A']"> <!-- 4070 Differenzierende Angaben zur Quelle -->
+                                <xsl:if test="./p:subfield[@code='d']">
+                                    <mods:detail type="volume">
                                     <mods:number>
                                         <xsl:value-of select="./p:subfield[@code='d']" />
                                     </mods:number>
@@ -318,17 +289,22 @@
                             </mods:text>
                         </xsl:if>
                     </mods:part>
+                    <!-- Remove direct population from parent -->
+                    <!--
                     <xsl:call-template name="parent_info">
                         <xsl:with-param name="parent" select="$parent" />
                     </xsl:call-template>
+                    -->
                     <xsl:if test="./p:subfield[@code='i']">
                         <mods:note type="relation_label"><xsl:value-of select="./p:subfield[@code='i']" /></mods:note>
                     </xsl:if>
                 </mods:relatedItem>
             </xsl:when>
             <xsl:when test="$pica0500_2='a'">
-                <mods:relatedItem>
+                <mods:relatedItem temp:relatedPPN="{$relatedPPN}">
                     <xsl:attribute name="otherType">appears_in</xsl:attribute>
+                    <!-- Remove direct population from parent or local fields -->
+                    <!--
                     <xsl:choose>
                         <xsl:when test="$parent/p:datafield">
                             <xsl:call-template name="parent_info">
@@ -403,13 +379,14 @@
                             </xsl:if>
                         </xsl:otherwise>
                     </xsl:choose>
+                    -->
                     <xsl:if test="./p:subfield[@code='i']">
                         <mods:note type="relation_label"><xsl:value-of select="./p:subfield[@code='i']" /></mods:note>
                     </xsl:if>
                 </mods:relatedItem>
             </xsl:when>
         </xsl:choose>
-
+        </xsl:if> <!-- End check for relatedPPN -->
     </xsl:template>
 
     <xsl:template name="COMMON_Reference">
@@ -417,73 +394,79 @@
         <xsl:param name="otherType" required="no" />
         <xsl:param name="datafield" />
         <xsl:comment>COMMON_REFERENCE for <xsl:value-of select="$datafield/@tag" /></xsl:comment>
-        <mods:relatedItem>
-            <xsl:if test="$type">
-                <xsl:attribute name="type" select="$type" />
-            </xsl:if>
-            <xsl:if test="$otherType">
-                <xsl:attribute name="otherType" select="$otherType" />
-            </xsl:if>
-            <xsl:choose>
-                <xsl:when test="$datafield/p:subfield[@code='9']">
-                    <xsl:variable name="parent" select="pica2mods:queryPicaFromUnAPIWithPPN($MCR.PICA2MODS.DATABASE, ./p:subfield[@code='9'])" />
-                    <xsl:if test="starts-with($parent/p:datafield[@tag='002@']/p:subfield[@code='0'], 'O')">
-                        <xsl:call-template name="parent_info">
-                            <xsl:with-param name="parent" select="$parent" />
-                        </xsl:call-template>
-                        <xsl:choose>
-                            <xsl:when test="$parent/p:datafield[@tag='004V']">
-                                <mods:identifier type='doi'><xsl:value-of select="$parent/p:datafield[@tag='004V']/p:subfield[@code='0']" /></mods:identifier>
-                            </xsl:when>
-                            <xsl:when test="$parent/p:datafield[@tag='017C']">
-                                <mods:identifier type='url'><xsl:value-of select="$parent/p:datafield[@tag='017C'][1]/p:subfield[@code='u']" /></mods:identifier>
-                            </xsl:when>
-                        </xsl:choose>
-                        <xsl:if test="$parent[starts-with(p:datafield[@tag='002@']/p:subfield[@code='0'], 'Ob')]/p:datafield[@tag='006Z']">
-                            <mods:identifier type="zdb">
-                                <xsl:value-of select="$parent/p:datafield[@tag='006Z']/p:subfield[@code='0']" />
+        <!-- Get related PPN from subfield 9 -->
+        <xsl:variable name="relatedPPN" select="$datafield/p:subfield[@code='9']"/>
+        <xsl:if test="$relatedPPN">
+            <mods:relatedItem temp:relatedPPN="{$relatedPPN}">
+                <xsl:if test="$type">
+                    <xsl:attribute name="type" select="$type" />
+                </xsl:if>
+                <xsl:if test="$otherType">
+                    <xsl:attribute name="otherType" select="$otherType" />
+                </xsl:if>
+                <!-- Remove direct population from parent or local fields -->
+                <!--
+                <xsl:choose>
+                    <xsl:when test="$datafield/p:subfield[@code='9']">
+                        <xsl:variable name="parent" select="pica2mods:queryPicaFromUnAPIWithPPN($MCR.PICA2MODS.DATABASE, ./p:subfield[@code='9'])" />
+                        <xsl:if test="starts-with($parent/p:datafield[@tag='002@']/p:subfield[@code='0'], 'O')">
+                            <xsl:call-template name="parent_info">
+                                <xsl:with-param name="parent" select="$parent" />
+                            </xsl:call-template>
+                            <xsl:choose>
+                                <xsl:when test="$parent/p:datafield[@tag='004V']">
+                                    <mods:identifier type='doi'><xsl:value-of select="$parent/p:datafield[@tag='004V']/p:subfield[@code='0']" /></mods:identifier>
+                                </xsl:when>
+                                <xsl:when test="$parent/p:datafield[@tag='017C']">
+                                    <mods:identifier type='url'><xsl:value-of select="$parent/p:datafield[@tag='017C'][1]/p:subfield[@code='u']" /></mods:identifier>
+                                </xsl:when>
+                            </xsl:choose>
+                            <xsl:if test="$parent[starts-with(p:datafield[@tag='002@']/p:subfield[@code='0'], 'Ob')]/p:datafield[@tag='006Z']">
+                                <mods:identifier type="zdb">
+                                    <xsl:value-of select="$parent/p:datafield[@tag='006Z']/p:subfield[@code='0']" />
+                                </mods:identifier>
+                            </xsl:if>
+                        </xsl:if>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:if test="$datafield/p:subfield[@code='a']">
+                            <xsl:variable name="titlefield">
+                                <p:datafield tag="021A">
+                                    <xsl:copy-of select="$datafield/p:subfield[@code='a']" />
+                                </p:datafield>
+                            </xsl:variable>
+                            <xsl:call-template name="simple_title">
+                                <xsl:with-param name="datafield" select="$titlefield/p:datafield" />
+                            </xsl:call-template>
+                        </xsl:if>
+                        <xsl:if test="$datafield/p:subfield[@code='t']">
+                            <xsl:variable name="titlefield">
+                                <p:datafield tag="021A">
+                                    <p:subfield code="a">
+                                        <xsl:value-of select="$datafield/p:subfield[@code='t']/text()" />
+                                    </p:subfield>
+                                </p:datafield>
+                            </xsl:variable>
+                            <xsl:call-template name="simple_title">
+                                <xsl:with-param name="datafield" select="$titlefield/p:datafield" />
+                            </xsl:call-template>
+                        </xsl:if>
+                        <xsl:if test="$datafield/p:subfield[@code='C' and text()='DOI']">
+                            <mods:identifier type="doi">
+                                <xsl:value-of select="$datafield/p:subfield[@code='C' and text()='DOI']/following-sibling::p:subfield[@code='6'][1]" />
                             </mods:identifier>
                         </xsl:if>
-                    </xsl:if>
-                </xsl:when>
-                <xsl:otherwise>
-                    <!-- <xsl:when test="$datafield/p:subfield[@code='C' and text()='DOI']"> -->
-                    <xsl:if test="$datafield/p:subfield[@code='a']">
-                        <xsl:variable name="titlefield">
-                            <p:datafield tag="021A">
-                                <xsl:copy-of select="$datafield/p:subfield[@code='a']" />
-                            </p:datafield>
-                        </xsl:variable>
-                        <xsl:call-template name="simple_title">
-                            <xsl:with-param name="datafield" select="$titlefield/p:datafield" />
-                        </xsl:call-template>
-                    </xsl:if>
-                    <xsl:if test="$datafield/p:subfield[@code='t']">
-                        <xsl:variable name="titlefield">
-                            <p:datafield tag="021A">
-                                <p:subfield code="a">
-                                    <xsl:value-of select="$datafield/p:subfield[@code='t']/text()" />
-                                </p:subfield>
-                            </p:datafield>
-                        </xsl:variable>
-                        <xsl:call-template name="simple_title">
-                            <xsl:with-param name="datafield" select="$titlefield/p:datafield" />
-                        </xsl:call-template>
-                    </xsl:if>
-                    <xsl:if test="$datafield/p:subfield[@code='C' and text()='DOI']">
-                        <mods:identifier type="doi">
-                            <xsl:value-of select="$datafield/p:subfield[@code='C' and text()='DOI']/following-sibling::p:subfield[@code='6'][1]" />
-                        </mods:identifier>
-                    </xsl:if>
-                </xsl:otherwise>
-            </xsl:choose>
-            <xsl:if test="$datafield/p:subfield[@code='i']">
-                <mods:note type="relation_label"><xsl:value-of select="$datafield/p:subfield[@code='i']" /></mods:note>
-            </xsl:if>
-            <xsl:if test="$datafield[@tag='039D']/p:subfield[@code='n']">  <!-- 4243 039D Beziehung auf Manifestationsebene -->
-                <mods:note type="format_type"><xsl:value-of select="$datafield[@tag='039D']/p:subfield[@code='n']" /></mods:note>
-            </xsl:if>
-        </mods:relatedItem>
+                    </xsl:otherwise>
+                </xsl:choose>
+                -->
+                <xsl:if test="$datafield/p:subfield[@code='i']">
+                    <mods:note type="relation_label"><xsl:value-of select="$datafield/p:subfield[@code='i']" /></mods:note>
+                </xsl:if>
+                <xsl:if test="$datafield[@tag='039D']/p:subfield[@code='n']">  <!-- 4243 039D Beziehung auf Manifestationsebene -->
+                    <mods:note type="format_type"><xsl:value-of select="$datafield[@tag='039D']/p:subfield[@code='n']" /></mods:note>
+                </xsl:if>
+            </mods:relatedItem>
+        </xsl:if> <!-- End check for relatedPPN -->
     </xsl:template>
 
 
