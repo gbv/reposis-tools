@@ -57,7 +57,7 @@ Converts a PICA XML file (containing one or more records) into individual MyCoRe
 **Usage:**
 
 ```bash
-convert-pica-mycore --input <path/to/input.xml> --output <path/to/output/dir> --id-mapper <path/to/idmap.properties> --id-base <prefix_00000000>
+convert-pica-mycore --input <path/to/input.xml> --output <path/to/output/dir> --id-mapper <path/to/idmap.properties> --id-base <prefix_00000000> --stylesheet <classpath/to/stylesheet.xsl>
 ```
 
 **Options:**
@@ -66,3 +66,4 @@ convert-pica-mycore --input <path/to/input.xml> --output <path/to/output/dir> --
 *   `-o`, `--output`: (Required) Path to the directory where the generated MyCoRe object XML files will be saved.
 *   `--id-mapper`: (Required) Path to a properties file used to store and retrieve mappings between PICA PPNs and MyCoRe IDs. If the file exists, it will be loaded; otherwise, it will be created. It is updated if new IDs are generated.
 *   `--id-base`: (Required) A template string used for generating new MyCoRe IDs. It must end with a sequence of digits, which determines the padding for the counter (e.g., `my_archive_mods_00000001`). The tool finds the highest existing ID matching this pattern in the mapper file and starts generating new IDs from the next number.
+*   `-s`, `--stylesheet`: (Required) Path to the XSLT stylesheet used for transforming PICA XML to MODS format. The stylesheet must be accessible in the classpath.

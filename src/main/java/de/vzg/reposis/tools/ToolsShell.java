@@ -30,7 +30,7 @@ public class ToolsShell {
     @ShellMethod(key = "convert-import-picaxml", value = "Converts PICA Importformat file to PICA XML.")
     public void convertPica(
             @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA Importformat file.") String input,
-            @ShellOption(value = {"-o", "--output"}, help = "Path to the output PICA XML file.") String output) {
+        @ShellOption(value = { "-o", "--output" }, help = "Path to the output PICA XML file.") String output) {
 
         Path inputPath = Paths.get(input);
         Path outputPath = Paths.get(output);
@@ -55,14 +55,16 @@ public class ToolsShell {
             @ShellOption(value = {"-i", "--input"}, help = "Path to the input PICA XML file.") String input,
             @ShellOption(value = {"-o", "--output"}, help = "Path to the directory for outputting MyCoRe objects.") String output,
             @ShellOption(value = {"--id-mapper"}, help = "Path to the file containing PPN to MyCoRe ID mappings (Properties format). Will be created/updated.") String idMapperPathStr,
-            @ShellOption(value = {"--id-base"}, help = "Template for generating new MyCoRe object IDs (e.g., artus_mods_00000000).") String idBase
+            @ShellOption(value = {"--id-base"}, help = "Template for generating new MyCoRe object IDs (e.g., artus_mods_00000000).") String idBase,
+            @ShellOption(value = { "-s", "--stylesheet" },
+                    help = "Path to the XSLT stylesheet in the classpath for transformation.") String stylesheet
     ) {
         Path inputPath = Paths.get(input);
         Path outputDirPath = Paths.get(output);
         Path idMapperPath = Paths.get(idMapperPathStr);
 
         try {
-            picaMyCoReConversionService.convertPicaXmlToMyCoRe(inputPath, outputDirPath, idMapperPath, idBase);
+            picaMyCoReConversionService.convertPicaXmlToMyCoRe(inputPath, outputDirPath, idMapperPath, idBase, stylesheet);
             System.out.println("PICA XML to MyCoRe conversion completed successfully.");
         } catch (FileNotFoundException e) {
             System.err.println("Error: Input file not found: " + e.getMessage());

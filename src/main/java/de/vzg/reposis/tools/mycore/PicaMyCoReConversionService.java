@@ -55,7 +55,6 @@ public class PicaMyCoReConversionService {
     private static final Namespace PICA_XML_NS = Namespace.getNamespace("pica", "info:srw/schema/5/picaXML-v1.0");
     private static final String PPN_TAG = "003@";
     private static final String PPN_CODE = "0";
-    private static final String XSLT_PATH = "/xsl/pica2mods.xsl"; // Default classpath location
     private static final String XSLT_PARAM_OBJECT_ID = "ObjectID"; // Assumed parameter name
     private static final Namespace TEMP_NS = Namespace.getNamespace("temp", "urn:temp-linking");
     private static final Namespace XLINK_NS = Namespace.getNamespace("xlink", "http://www.w3.org/1999/xlink");
@@ -81,12 +80,14 @@ public class PicaMyCoReConversionService {
         this.myCoReObjectService = myCoReObjectService;
     }
 
-    public void convertPicaXmlToMyCoRe(Path inputPath, Path outputDir, Path idMapperPath, String idBase) throws IOException, TransformerException, JDOMException {
+    public void convertPicaXmlToMyCoRe(Path inputPath, Path outputDir, Path idMapperPath, String idBase,
+        String stylesheet) throws IOException, TransformerException, JDOMException {
         log.info("Starting PICA XML to MyCoRe conversion (Two-Pass)...");
         log.info("Input PICA XML: {}", inputPath);
         log.info("Output Directory: {}", outputDir);
         log.info("ID Mapper File: {}", idMapperPath);
         log.info("MyCoRe ID Base: {}", idBase);
+        log.info("XSLT Stylesheet: {}", stylesheet);
 
         // 1. Load or initialize ID Mapper
         Properties idMapper = loadIdMapper(idMapperPath);
@@ -159,7 +160,7 @@ public class PicaMyCoReConversionService {
         transformerFactory.setURIResolver(new ClasspathUriResolver(ppnToRecordMap));
 
         // Load XSLT from classpath
-        Source xsltSource = loadXsltFromClasspath(XSLT_PATH);
+        Source xsltSource = loadXsltFromClasspath("/xsl/" + stylesheet);
         Transformer transformer = transformerFactory.newTransformer(xsltSource);
         XMLOutputter xmlOutputter = new XMLOutputter(Format.getRawFormat()); // For converting record Element to String for XSLT input
 
