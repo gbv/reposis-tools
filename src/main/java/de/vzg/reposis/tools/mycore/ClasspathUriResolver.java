@@ -95,7 +95,8 @@ public class ClasspathUriResolver implements URIResolver {
                                     String recordXml = xmlOutputter.outputString(recordElement);
                                     // Log the beginning of the XML being returned for debugging parsing issues
                                     int logLength = Math.min(recordXml.length(), 200); // Log first 200 chars
-                                    log.debug("Returning XML for PPN {}: {}...", ppn, recordXml.substring(0, logLength).replace('\n', ' '));
+                                    log.debug("Returning XML for PPN {}: {}...", ppn,
+                                        recordXml.substring(0, logLength).replace('\n', ' '));
                                     // Return the found record XML as a StreamSource
                                     return new StreamSource(new StringReader(recordXml), href); // Use href as systemId
                                 } else { // Corresponds to if (recordElement != null)
@@ -104,7 +105,8 @@ public class ClasspathUriResolver implements URIResolver {
                                     return null;
                                 }
                             } else { // Corresponds to if (this.ppnToRecordMap != null)
-                                log.warn("Received UNAPI request for PPN {}, but no PPN-to-Record map was configured.", ppn);
+                                log.warn("Received UNAPI request for PPN {}, but no PPN-to-Record map was configured.",
+                                    ppn);
                                 return null; // Cannot fulfill request
                             }
                         } // Corresponds to if (ppnMatcher.find())
@@ -142,7 +144,8 @@ public class ClasspathUriResolver implements URIResolver {
             String effectiveHref = href;
             // Ensure href doesn't already start with the base path to avoid duplication
             if (effectiveHref.startsWith(XSL_BASE_PATH)) {
-                log.trace("href '{}' already starts with XSL base path '{}', using as is.", effectiveHref, XSL_BASE_PATH);
+                log.trace("href '{}' already starts with XSL base path '{}', using as is.", effectiveHref,
+                    XSL_BASE_PATH);
             } else if (effectiveHref.startsWith("/")) {
                 // If href is absolute, prepend base path without the leading slash of href
                 effectiveHref = XSL_BASE_PATH + effectiveHref.substring(1);
@@ -156,34 +159,37 @@ public class ClasspathUriResolver implements URIResolver {
                 // If base is present and represents a classpath URI, try resolving relative to it.
                 // Otherwise, treat effectiveHref as an absolute path within the classpath.
                 if (base != null && !base.isEmpty()) {
-                URI baseUri = new URI(base);
-                // Simple check if base looks like a classpath resource path
-                // It should already contain the XSL_BASE_PATH if resolved by this resolver previously
-                if (baseUri.getScheme() == null || "classpath".equalsIgnoreCase(baseUri.getScheme())) {
-                    // Resolve effectiveHref relative to the base path
-                    // Ensure base path ends with / for correct relative resolution
-                    String baseForResolve = baseUri.getPath().endsWith("/") ? baseUri.getPath() : baseUri.getPath() + "/";
-                    URI resolved = new URI(null, null, baseForResolve, null).resolve(effectiveHref.startsWith("/") ? effectiveHref.substring(1) : effectiveHref);
-                    resolvePath = resolved.getPath();
-                    // Ensure the path starts with / for classpath loading
-                    if (!resolvePath.startsWith("/")) {
-                        resolvePath = "/" + resolvePath;
+                    URI baseUri = new URI(base);
+                    // Simple check if base looks like a classpath resource path
+                    // It should already contain the XSL_BASE_PATH if resolved by this resolver previously
+                    if (baseUri.getScheme() == null || "classpath".equalsIgnoreCase(baseUri.getScheme())) {
+                        // Resolve effectiveHref relative to the base path
+                        // Ensure base path ends with / for correct relative resolution
+                        String baseForResolve =
+                            baseUri.getPath().endsWith("/") ? baseUri.getPath() : baseUri.getPath() + "/";
+                        URI resolved = new URI(null, null, baseForResolve, null)
+                            .resolve(effectiveHref.startsWith("/") ? effectiveHref.substring(1) : effectiveHref);
+                        resolvePath = resolved.getPath();
+                        // Ensure the path starts with / for classpath loading
+                        if (!resolvePath.startsWith("/")) {
+                            resolvePath = "/" + resolvePath;
+                        }
+                        log.debug("Resolved relative path: {}", resolvePath);
+                    } else {
+                        // Base is not something we can easily resolve against in classpath, treat effectiveHref as absolute
+                        resolvePath = effectiveHref.startsWith("/") ? effectiveHref : "/" + effectiveHref;
+                        log.debug("Base URI '{}' not classpath-relative, treating effectiveHref as absolute: {}", base,
+                            resolvePath);
                     }
-                    log.debug("Resolved relative path: {}", resolvePath);
                 } else {
-                    // Base is not something we can easily resolve against in classpath, treat effectiveHref as absolute
+                    // No base, treat effectiveHref as absolute path in classpath
                     resolvePath = effectiveHref.startsWith("/") ? effectiveHref : "/" + effectiveHref;
-                    log.debug("Base URI '{}' not classpath-relative, treating effectiveHref as absolute: {}", base, resolvePath);
+                    log.debug("No base URI provided, treating effectiveHref as absolute: {}", resolvePath);
                 }
-            } else {
-                // No base, treat effectiveHref as absolute path in classpath
-                resolvePath = effectiveHref.startsWith("/") ? effectiveHref : "/" + effectiveHref;
-                log.debug("No base URI provided, treating effectiveHref as absolute: {}", resolvePath);
+            } catch (URISyntaxException e) {
+                log.error("Error parsing base URI '{}' or effective href '{}'", base, effectiveHref, e);
+                throw new TransformerException("Error resolving URI", e);
             }
-        } catch (URISyntaxException e) {
-            log.error("Error parsing base URI '{}' or effective href '{}'", base, effectiveHref, e);
-            throw new TransformerException("Error resolving URI", e);
-        }
         } // End of else block for non-resource scheme handling
 
         // Attempt to load the resource from the classpath using the final resolved path
@@ -194,11 +200,11 @@ public class ClasspathUriResolver implements URIResolver {
             log.info("Successfully resolved '{}' from classpath path '{}'", href, resolvePath);
             return new StreamSource(inputStream, resolvePath); // Use resolvePath as systemId
         } else {
-            log.warn("Could not resolve '{}' (tried classpath path '{}'). Delegating to default resolver.", href, resolvePath);
+            log.warn("Could not resolve '{}' (tried classpath path '{}'). Delegating to default resolver.", href,
+                resolvePath);
             // Returning null delegates to the default JAXP URIResolver mechanism
             // which might resolve file paths, http URLs etc.
             return null;
         }
     }
-    // Removed findPicaRecordByPpn, findNextStartElement, extractPpnAndWriteCompleteRecord as they are no longer needed
 }

@@ -1,6 +1,14 @@
 package de.vzg.reposis.tools.mycore;
 
 
+import java.io.IOException;
+import java.io.StringReader;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.jdom2.Document;
 import org.jdom2.Element;
 import org.jdom2.JDOMException;
@@ -10,14 +18,6 @@ import org.jdom2.input.SAXBuilder;
 import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
 import org.springframework.stereotype.Service;
-
-import java.io.IOException;
-import java.io.StringReader;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class MyCoReObjectService {
@@ -171,6 +171,7 @@ public class MyCoReObjectService {
         }
 
         Element mycoreDoc = new Element("mycoreobject");
+
         mycoreDoc.addContent(new Element("structure"));
 
         Element metadata = new Element("metadata");
@@ -197,6 +198,8 @@ public class MyCoReObjectService {
         mycoreDoc.addContent(service);
 
         mycoreDoc.setAttribute("ID", baseID);
+        mycoreDoc.setAttribute("noNamespaceSchemaLocation", "datamodel-mods.xsd",
+            Namespace.getNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance"));
 
         return new org.jdom2.Document(mycoreDoc);
     }
