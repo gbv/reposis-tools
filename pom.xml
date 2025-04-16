@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>de.vzg.reposis</groupId>
-	<artifactId>tools</artifactId>
+	<artifactId>reposis-tools</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>tools</name>
 	<description>command line tools for reposis</description>
