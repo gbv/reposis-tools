@@ -31,7 +31,7 @@
                     <xsl:text>dissertation</xsl:text>
                 </xsl:when>
                 <xsl:when test="./p:datafield[@tag='002@']/p:subfield[@code='0'] = 'Aau'">
-                    <xsl:text>monograph</xsl:text>">
+                    <xsl:text>monograph</xsl:text>
                 </xsl:when>
                 <xsl:otherwise>
                     <xsl:message>WARNING: no genre found for <xsl:value-of select="./p:datafield[@tag='003@']//p:subfield[@code='0']"/></xsl:message>
