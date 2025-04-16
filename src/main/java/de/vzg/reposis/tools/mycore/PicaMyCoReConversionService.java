@@ -19,6 +19,7 @@ import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
@@ -70,7 +71,7 @@ public class PicaMyCoReConversionService {
             "pica:datafield[@tag='" + PPN_TAG + "']/pica:subfield[@code='" + PPN_CODE + "']", Filters.element(), null, PICA_XML_NS);
     // XPath to find relatedItems needing linking in Pass 2
     private static final XPathExpression<Element> RELATED_ITEM_LINK_XPATH = XPATH_FACTORY.compile(
-            "//mods:mods/mods:relatedItem[@temp:relatedPPN]", Filters.element(), null, MODS_NS, TEMP_NS);
+            "//mods:mods/mods:relatedItem[@temp:relatedPPN or @temp:relatedISBN or @temp:relatedISSN]", Filters.element(), null, MODS_NS, TEMP_NS);
     // XPath to find the mods:mods element within a MyCoRe object document
     private static final XPathExpression<Element> MYCORE_MODS_XPATH = XPATH_FACTORY.compile(
             "/mycoreobject/metadata/def.modsContainer/modsContainer/mods:mods", Filters.element(), null, MODS_NS);
@@ -236,22 +237,26 @@ public class PicaMyCoReConversionService {
             List<Element> itemsToLink = RELATED_ITEM_LINK_XPATH.evaluate(currentDocument);
 
             for (Element relatedItem : itemsToLink) {
-                Attribute tempPpnAttr = relatedItem.getAttribute("relatedPPN", TEMP_NS);
-                if (tempPpnAttr == null) continue; // Should not happen based on XPath, but safe check
+                String matchingAttribute = Stream.of("relatedPPN", "relatedISBN", "relatedISSN")
+                        .filter(attr -> relatedItem.getAttribute(attr, TEMP_NS) != null)
+                        .findFirst()
+                        .orElse(null);
 
-                String relatedPPN = tempPpnAttr.getValue();
-                relatedItem.removeAttribute(tempPpnAttr); // Remove temporary attribute
-                // Explicitly remove the namespace declaration as well
+                if (matchingAttribute == null) continue;
+                // Get the temporary attribute (e.g., relatedPPN)
+                Attribute tempAttr = relatedItem.getAttribute(matchingAttribute, TEMP_NS);
                 relatedItem.removeNamespaceDeclaration(TEMP_NS);
-                log.trace("Pass 2: Removed temp:relatedPPN attribute and temp namespace from relatedItem for PPN {}", relatedPPN);
+                String related = tempAttr.getValue();
+                relatedItem.removeAttribute(tempAttr); // Remove temporary attribute
+
 
                 // Find the MyCoRe ID for the related PPN
-                String relatedMyCoReId = idMapper.getProperty(relatedPPN);
+                String relatedMyCoReId = idMapper.getProperty(related);
 
                 if (relatedMyCoReId != null) {
                     // Add xlink:href
                     relatedItem.setAttribute("href", relatedMyCoReId, XLINK_NS);
-                    log.trace("Pass 2: Added xlink:href='{}' for related PPN {}", relatedMyCoReId, relatedPPN);
+                    log.trace("Pass 2: Added xlink:href='{}' for related PPN {}", relatedMyCoReId, related);
 
                     // Find the related document in our generated map
                     Document relatedDocument = generatedObjects.get(relatedMyCoReId);
@@ -264,14 +269,9 @@ public class PicaMyCoReConversionService {
                             log.trace("Pass 2: Embedded related mods from {} into {}", relatedMyCoReId, currentMyCoReId);
                             linkedItemsCount++;
                             objectModifiedInPass2 = true;
-                        } else {
-                            log.warn("Pass 2: Could not find mods:mods element in related object {} (PPN: {})", relatedMyCoReId, relatedPPN);
                         }
-                    } else {
-                        log.warn("Pass 2: Could not find related object {} (PPN: {}) in generated map for linking.", relatedMyCoReId, relatedPPN);
                     }
-                } else {
-                    log.warn("Pass 2: Could not find MyCoRe ID mapping for related PPN {} found in object {}", relatedPPN, currentMyCoReId);
+
                 }
             } // End loop over itemsToLink
 
