@@ -287,6 +287,171 @@ public class ToolsShell {
         }
     }
 
+
+    @ShellMethod(key = "convert-issn-list", value = "Fetches PICA records for a list of ISSNs via SRU and converts them to MyCoRe objects.")
+    public void convertIssnList(
+            @ShellOption(value = {"-i", "--input"}, help = "Path to the input file containing ISSNs (one per line).") String input,
+            @ShellOption(value = {"-o", "--output"}, help = "Path to the directory for outputting MyCoRe objects.") String output,
+            @ShellOption(value = {"--id-mapper"}, help = "Path to the file containing ISSN/PPN to MyCoRe ID mappings (Properties format). Will be created/updated.") String idMapperPathStr,
+            @ShellOption(value = {"--id-base"}, help = "Template for generating new MyCoRe object IDs (e.g., reposis_mods_00000000).") String idBase,
+            @ShellOption(value = {"-s", "--stylesheet"}, help = "Path to the XSLT stylesheet in the classpath for transformation (e.g., pica2mods_artus.xsl).") String stylesheet
+    ) {
+        Path inputPath = Paths.get(input);
+        Path outputDirPath = Paths.get(output);
+        Path idMapperPath = Paths.get(idMapperPathStr);
+
+        log.info("Starting ISSN list to MyCoRe conversion...");
+        log.info("Input ISSN list: {}", inputPath);
+        log.info("Output Directory: {}", outputDirPath);
+        log.info("ID Mapper File: {}", idMapperPath);
+        log.info("MyCoRe ID Base: {}", idBase);
+        log.info("XSLT Stylesheet: {}", stylesheet);
+
+        try {
+            // 1. Load or initialize ID Mapper
+            Properties idMapper = loadIdMapper(idMapperPath);
+            boolean mapperChanged = false;
+
+            // 2. Prepare ID Generation
+            IdGenerator idGenerator = new IdGenerator(idBase, idMapper);
+
+            // 3. Ensure output directory exists
+            Files.createDirectories(outputDirPath);
+
+            // 4. Prepare XSLT Transformer
+            Transformer transformer = setupTransformer(stylesheet);
+            XMLOutputter xmlRecordOutputter = new XMLOutputter(Format.getRawFormat()); // For converting record Element to String for XSLT input
+            XMLOutputter finalOutputter = new XMLOutputter(Format.getPrettyFormat()); // For final file output
+
+            // 5. Read ISSNs and process
+            List<String> issns = Files.readAllLines(inputPath, StandardCharsets.UTF_8).stream()
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty() && !line.startsWith("#")) // Ignore empty lines and comments
+                    .collect(Collectors.toList());
+
+            log.info("Found {} ISSNs to process.", issns.size());
+            int processedCount = 0;
+            int skippedCount = 0;
+            int errorCount = 0;
+            int newIdsGenerated = 0;
+
+            for (String issn : issns) {
+                processedCount++;
+                log.info("Processing ISSN {}/{}: {}", processedCount, issns.size(), issn);
+
+                try {
+                    // Check if ISSN is already mapped
+                    if (idMapper.containsKey(issn)) {
+                        log.info("ISSN {} already mapped to {}. Skipping.", issn, idMapper.getProperty(issn));
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // Fetch PICA records via SRU
+                    List<Element> picaRecords = sruService.resolvePicaByISSN(issn); // Changed from resolvePicaByISBN
+                    if (picaRecords.isEmpty()) {
+                        log.warn("No PICA records found for ISSN {}. Skipping.", issn);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // Select the best record (using the same logic as ISBN for now)
+                    Element selectedRecord = selectBestPicaRecord(picaRecords, issn); // Pass issn for logging
+                    if (selectedRecord == null) {
+                        log.warn("Could not select a suitable PICA record for ISSN {}. Skipping.", issn);
+                        skippedCount++;
+                        continue; // Should not happen if picaRecords is not empty, but safety check
+                    }
+
+                    // Extract PPN
+                    String ppn = PicaUtils.extractPpnFromRecord(selectedRecord);
+                    if (ppn == null) {
+                        log.warn("Could not extract PPN from selected record for ISSN {}. Skipping.", issn);
+                        XMLOutputter debugOutputter = new XMLOutputter(Format.getCompactFormat());
+                        log.debug("Record without PPN: {}", debugOutputter.outputString(selectedRecord));
+                        skippedCount++;
+                        continue;
+                    }
+                    log.debug("Extracted PPN {} for ISSN {}", ppn, issn);
+
+                    // Determine MyCoRe ID
+                    String mycoreId;
+                    if (idMapper.containsKey(ppn)) {
+                        mycoreId = idMapper.getProperty(ppn);
+                        log.info("PPN {} already mapped to {}. Using existing ID.", ppn, mycoreId);
+                        // Add mapping for the current ISSN as well
+                        if (!idMapper.containsKey(issn)) {
+                            idMapper.setProperty(issn, mycoreId);
+                            mapperChanged = true;
+                            log.info("Added mapping for ISSN {} -> {}", issn, mycoreId);
+                        }
+                    } else {
+                        mycoreId = idGenerator.generateNextId();
+                        idMapper.setProperty(ppn, mycoreId);
+                        idMapper.setProperty(issn, mycoreId); // Map ISSN as well
+                        mapperChanged = true;
+                        newIdsGenerated++;
+                        log.info("Generated new MyCoRe ID {} for PPN {} / ISSN {}", mycoreId, ppn, issn);
+                    }
+
+                    // Perform XSLT Transformation
+                    log.debug("Transforming record for PPN {} (MyCoRe ID {})", ppn, mycoreId);
+                    transformer.setParameter("ObjectID", mycoreId); // Set ObjectID parameter for XSLT
+
+                    String recordXmlString = xmlRecordOutputter.outputString(selectedRecord);
+                    Source xmlSource = new StreamSource(new StringReader(recordXmlString));
+                    StringWriter modsOutputWriter = new StringWriter();
+                    Result modsResult = new StreamResult(modsOutputWriter);
+
+                    transformer.transform(xmlSource, modsResult);
+                    String modsXml = modsOutputWriter.toString();
+                    transformer.clearParameters(); // Clear parameters for next use
+
+                    // Wrap in MyCoRe frame
+                    Document mycoreDocument = myCoReObjectService.wrapInMyCoReFrame(modsXml, mycoreId, "published"); // Assuming "published" status
+
+                    // Write the final MyCoRe object file
+                    Path outputFilePath = outputDirPath.resolve(mycoreId + ".xml");
+                    try (OutputStreamWriter fileWriter = new OutputStreamWriter(new BufferedOutputStream(Files.newOutputStream(outputFilePath)), StandardCharsets.UTF_8)) {
+                        finalOutputter.output(mycoreDocument, fileWriter);
+                        log.debug("Successfully wrote MyCoRe object to {}", outputFilePath);
+                    }
+
+                } catch (Exception e) {
+                    log.error("Error processing ISSN {}: {}", issn, e.getMessage(), e);
+                    errorCount++;
+                }
+            } // End ISSN loop
+
+            // 6. Save ID Mapper if changed
+            if (mapperChanged) {
+                saveIdMapper(idMapper, idMapperPath);
+            }
+
+            log.info("ISSN list processing finished.");
+            log.info("Summary: {} total ISSNs, {} skipped, {} errors.", issns.size(), skippedCount, errorCount);
+            if (mapperChanged) {
+                log.info("Generated {} new MyCoRe IDs and updated mapper file '{}'.", newIdsGenerated, idMapperPath);
+            }
+
+        } catch (IOException e) {
+            log.error("File I/O error: {}", e.getMessage(), e);
+            System.err.println("Error during file I/O: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid argument: {}", e.getMessage(), e);
+            System.err.println("Error: Invalid argument provided: " + e.getMessage());
+        } catch (TransformerException e) {
+            log.error("XSLT transformation error: {}", e.getMessage(), e);
+            System.err.println("Error during XSLT transformation: " + e.getMessage());
+            e.printStackTrace();
+        } catch (Exception e) {
+            log.error("An unexpected error occurred: {}", e.getMessage(), e);
+            System.err.println("An unexpected error occurred: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+
     // --- Helper Methods ---
 
     /**
