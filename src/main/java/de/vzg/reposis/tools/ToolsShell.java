@@ -421,7 +421,10 @@ public class ToolsShell {
             // Find max number from values (MyCoRe IDs) in the mapper
             long maxExistingNumber = findMaxExistingNumber(idMapper);
 
-            this.counter = new AtomicLong(Math.max(initialBaseNumber -1 , maxExistingNumber)); // Start counter before the next ID
+            // Initialize counter: Start at the maximum of the base number or the highest existing number.
+            // This ensures that if base is '...000' and no higher ID exists, the counter starts at 0,
+            // and the first generated ID (using incrementAndGet) will be '...001'.
+            this.counter = new AtomicLong(Math.max(initialBaseNumber, maxExistingNumber));
             log.info("ID Generator initialized. Prefix='{}', Format='{}', Next ID number={}", prefix, format, counter.get() + 1);
         }
 
