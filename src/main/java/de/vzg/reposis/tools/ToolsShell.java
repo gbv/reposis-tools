@@ -191,8 +191,8 @@ public class ToolsShell {
                         continue;
                     }
 
-                    // Select the best record
-                    Element selectedRecord = selectBestPicaRecord(picaRecords, isbn);
+                    // Select the best record (prioritizing 002@ $0 starting with 'Aa')
+                    Element selectedRecord = selectBestPicaRecord(picaRecords, isbn, "Aa"); // Use unified selection
                     if (selectedRecord == null) {
                         log.warn("Could not select a suitable PICA record for ISBN {}. Skipping.", isbn);
                         skippedCount++;
@@ -356,7 +356,7 @@ public class ToolsShell {
                     }
 
                     // Select the best record (prioritizing 002@ $0 starting with 'Abv')
-                    Element selectedRecord = selectBestPicaRecordForIssn(picaRecords, issn); // Use ISSN-specific selection
+                    Element selectedRecord = selectBestPicaRecord(picaRecords, issn, "Abv"); // Use unified selection
                     if (selectedRecord == null) {
                         log.warn("Could not select a suitable PICA record for ISSN {}. Skipping.", issn);
                         skippedCount++;
@@ -455,87 +455,48 @@ public class ToolsShell {
     // --- Helper Methods ---
 
     /**
-     * Selects the best PICA record from a list for an ISBN, prioritizing records where 002@ $0 starts with 'Aa'.
-     * If multiple match, takes the first matching. If none match, takes the first record in the list.
-     * Returns a detached clone of the selected record.
+     * Selects the best PICA record from a list based on a priority prefix in field 002@ $0.
+     * If multiple records match the prefix, the first matching record is returned.
+     * If no records match, the first record in the list is returned.
+     * Returns the selected Element reference directly (no clone).
+     *
+     * @param records         The list of PICA record elements.
+     * @param identifier      The identifier (ISBN/ISSN) being processed, for logging purposes.
+     * @param priorityPrefix The prefix ("Aa" or "Abv") to prioritize in 002@ $0.
+     * @return The selected Element, or null if the input list is null or empty.
      */
-    private Element selectBestPicaRecord(List<Element> records, String isbn) {
+    private Element selectBestPicaRecord(List<Element> records, String identifier, String priorityPrefix) {
         if (records == null || records.isEmpty()) {
             return null;
         }
 
-        Element bestMatch = null;
         for (Element record : records) {
-            if (checkPicaField002AStartsWithAa(record)) {
-                log.debug("Found prioritized record (002@ $0 starts with 'Aa') for ISBN {}", isbn);
-                bestMatch = record;
-                break; // Take the first one matching the criteria
+            if (checkPicaField002AStartsWith(record, priorityPrefix)) {
+                log.debug("Found prioritized record (002@ $0 starts with '{}') for identifier {}", priorityPrefix, identifier);
+                return record; // Return the first matching record directly
             }
         }
 
-        if (bestMatch != null) {
-            return bestMatch.clone(); // Return a detached clone
-        } else {
-            // No record matched the priority rule, return the first record found
-            log.debug("No record matched priority rule (002@ $0 starts with 'Aa') for ISBN {}. Selecting first record.", isbn);
-            return records.get(0).clone(); // Return a detached clone
-        }
+        // No record matched the priority rule, return the first record found
+        log.debug("No record matched priority rule (002@ $0 starts with '{}') for identifier {}. Selecting first record.", priorityPrefix, identifier);
+        return records.getFirst(); // Return the first record directly
     }
 
     /**
-     * Selects the best PICA record from a list for an ISSN, prioritizing records where 002@ $0 starts with 'Abv'.
-     * If multiple match, takes the first matching. If none match, takes the first record in the list.
-     * Returns a detached clone of the selected record.
+     * Checks if the PICA record has a field 002@ with subfield $0 starting with the given prefix.
+     *
+     * @param record The PICA record element.
+     * @param prefix The prefix to check for (e.g., "Aa", "Abv").
+     * @return true if the subfield exists and starts with the prefix, false otherwise.
      */
-    private Element selectBestPicaRecordForIssn(List<Element> records, String issn) {
-        if (records == null || records.isEmpty()) {
-            return null;
-        }
-
-        Element bestMatch = null;
-        for (Element record : records) {
-            if (checkPicaField002AStartsWithAbv(record)) { // Check for 'Abv'
-                log.debug("Found prioritized record (002@ $0 starts with 'Abv') for ISSN {}", issn);
-                bestMatch = record;
-                break; // Take the first one matching the criteria
-            }
-        }
-
-        if (bestMatch != null) {
-            return bestMatch.clone(); // Return a detached clone
-        } else {
-            // No record matched the priority rule, return the first record found
-            log.debug("No record matched priority rule (002@ $0 starts with 'Abv') for ISSN {}. Selecting first record.", issn);
-            return records.get(0).clone(); // Return a detached clone
-        }
-    }
-
-    /**
-     * Checks if the PICA record has a field 002@ with subfield $0 starting with "Aa".
-     */
-    private boolean checkPicaField002AStartsWithAa(Element record) {
-        if (record == null) {
+    private boolean checkPicaField002AStartsWith(Element record, String prefix) {
+        if (record == null || prefix == null) {
             return false;
         }
         Element subfield0 = PICA_002A_SUBFIELD_0_XPATH.evaluateFirst(record);
         if (subfield0 != null) {
             String value = subfield0.getTextTrim();
-            return value != null && value.startsWith("Aa");
-        }
-        return false;
-    }
-
-    /**
-     * Checks if the PICA record has a field 002@ with subfield $0 starting with "Abv".
-     */
-    private boolean checkPicaField002AStartsWithAbv(Element record) {
-        if (record == null) {
-            return false;
-        }
-        Element subfield0 = PICA_002A_SUBFIELD_0_XPATH.evaluateFirst(record);
-        if (subfield0 != null) {
-            String value = subfield0.getTextTrim();
-            return value != null && value.startsWith("Abv"); // Check for 'Abv'
+            return value != null && value.startsWith(prefix);
         }
         return false;
     }
