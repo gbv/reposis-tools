@@ -34,15 +34,45 @@ public class SRUService {
     private static List<Element> extractElementsFromPicaResult(ClassicHttpResponse resp) {
         try (InputStream is = resp.getEntity().getContent()) {
             Document document = new SAXBuilder().build(is);
-            return new ArrayList<>(document.getRootElement().getChild("records", ZS_NAMESPACE)
-                .getChildren("record", ZS_NAMESPACE))
-                .stream()
+            Element rootElement = document.getRootElement();
+            Element recordsElement = rootElement.getChild("records", ZS_NAMESPACE);
+
+            // Check if the <records> element exists
+            if (recordsElement == null) {
+                // No <records> element, likely zero hits or an error response structure
+                // Check for diagnostics which might indicate zero hits explicitly
+                Element diagnostics = rootElement.getChild("diagnostics", ZS_NAMESPACE);
+                if (diagnostics != null) {
+                    // Log diagnostics if needed, but return empty list for zero hits
+                    // Example diagnostic for zero hits: info:srw/diagnostic/1/7 (NoRecordsMatch)
+                    // For now, just assume any diagnostics means no processable records here
+                    return List.of(); // Return empty list
+                }
+                // If no <records> and no <diagnostics>, it might be an unexpected response format
+                // Log a warning? For now, return empty list.
+                // log.warn("SRU response did not contain <records> or <diagnostics> element.");
+                return List.of();
+            }
+
+            // <records> element exists, proceed to extract individual records
+            List<Element> recordElements = recordsElement.getChildren("record", ZS_NAMESPACE);
+            if (recordElements.isEmpty()) {
+                // <records> element is empty, zero hits
+                return List.of(); // Return empty list
+            }
+
+            // Extract and detach the actual PICA <record> elements
+            return recordElements.stream()
                 .map(r -> r.getChild("recordData", ZS_NAMESPACE))
+                .filter(java.util.Objects::nonNull) // Ensure <recordData> exists
                 .map(r -> r.getChild("record", PICA_NAMESPACE))
+                .filter(java.util.Objects::nonNull) // Ensure PICA <record> exists
                 .map(Element::detach)
                 .toList();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            // Log the exception and return an empty list or rethrow as appropriate
+            // For now, rethrowing as RuntimeException to maintain previous behavior on actual errors
+            throw new RuntimeException("Error parsing SRU response: " + e.getMessage(), e);
         }
     }
 
