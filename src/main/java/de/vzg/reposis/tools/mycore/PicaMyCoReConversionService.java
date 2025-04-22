@@ -250,7 +250,7 @@ public class PicaMyCoReConversionService {
                 relatedItem.removeAttribute(tempAttr); // Remove temporary attribute
 
 
-                // Find the MyCoRe ID for the related PPN
+                // Find the MyCoRe ID for the related PPN, ISBN, or ISSN
                 String relatedMyCoReId = idMapper.getProperty(related);
 
                 if (relatedMyCoReId != null) {
