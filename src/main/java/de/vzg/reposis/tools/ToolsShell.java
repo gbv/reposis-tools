@@ -1,6 +1,6 @@
 package de.vzg.reposis.tools;
 
-import de.vzg.reposis.tools.mycore.ClasspathUriResolver;
+// Removed ClasspathUriResolver import as it's no longer used directly in this class
 import de.vzg.reposis.tools.mycore.MyCoReObjectService;
 import de.vzg.reposis.tools.mycore.PicaMyCoReConversionService;
 import de.vzg.reposis.tools.pica.PicaConversionService;
@@ -14,6 +14,9 @@ import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
 import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
+import org.mycore.pica2mods.xsl.Pica2ModsManager;
+import org.mycore.pica2mods.xsl.Pica2ModsXSLTURIResolver;
+import org.mycore.pica2mods.xsl.model.Pica2ModsConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -154,8 +157,34 @@ public class ToolsShell {
             // 3. Ensure output directory exists
             Files.createDirectories(outputDirPath);
 
-            // 4. Prepare XSLT Transformer
-            Transformer transformer = setupTransformer(stylesheet);
+            // 4. Prepare pica2mods components and XSLT Transformer
+            Pica2ModsConfig pica2ModsConfig = new Pica2ModsConfig();
+            // Use a placeholder or make configurable if needed. Required by Pica2ModsXSLTURIResolver.
+            pica2ModsConfig.setUnapiUrl("https://unapi.k10plus.de/");
+            // Use a placeholder or make configurable if needed. Required by some XSLTs.
+            pica2ModsConfig.setMycoreUrl("http://localhost:8080/");
+            pica2ModsConfig.setCatalogs(new java.util.HashMap<>()); // Initialize catalogs map
+
+            Pica2ModsManager pica2ModsManager = new Pica2ModsManager(pica2ModsConfig);
+
+            TransformerFactory transformerFactory = TransformerFactory.newInstance("net.sf.saxon.TransformerFactoryImpl", null);
+            transformerFactory.setURIResolver(new Pica2ModsXSLTURIResolver(pica2ModsManager));
+            transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+
+            String xsltPath = "/xsl/" + stylesheet;
+            InputStream xsltStream = ToolsShell.class.getResourceAsStream(xsltPath);
+            if (xsltStream == null) {
+                throw new TransformerConfigurationException("XSLT file not found on classpath: " + xsltPath);
+            }
+            Source xslSource = new StreamSource(xsltStream, xsltPath); // Set System ID
+
+            Transformer transformer = transformerFactory.newTransformer(xslSource);
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+            // Set parameters required by standard pica2mods stylesheets
+            transformer.setParameter("WebApplicationBaseURL", pica2ModsConfig.getMycoreUrl());
+            // Add other parameters if needed by your specific stylesheet, e.g., RestrictedAccess
+
             XMLOutputter xmlRecordOutputter = new XMLOutputter(Format.getRawFormat()); // For converting record Element to String for XSLT input
             XMLOutputter finalOutputter = new XMLOutputter(Format.getPrettyFormat()); // For final file output
 
@@ -323,8 +352,34 @@ public class ToolsShell {
             // 3. Ensure output directory exists
             Files.createDirectories(outputDirPath);
 
-            // 4. Prepare XSLT Transformer
-            Transformer transformer = setupTransformer(stylesheet);
+            // 4. Prepare pica2mods components and XSLT Transformer
+            Pica2ModsConfig pica2ModsConfig = new Pica2ModsConfig();
+            // Use a placeholder or make configurable if needed. Required by Pica2ModsXSLTURIResolver.
+            pica2ModsConfig.setUnapiUrl("https://unapi.k10plus.de/");
+            // Use a placeholder or make configurable if needed. Required by some XSLTs.
+            pica2ModsConfig.setMycoreUrl("http://localhost:8080/");
+            pica2ModsConfig.setCatalogs(new java.util.HashMap<>()); // Initialize catalogs map
+
+            Pica2ModsManager pica2ModsManager = new Pica2ModsManager(pica2ModsConfig);
+
+            TransformerFactory transformerFactory = TransformerFactory.newInstance("net.sf.saxon.TransformerFactoryImpl", null);
+            transformerFactory.setURIResolver(new Pica2ModsXSLTURIResolver(pica2ModsManager));
+            transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+
+            String xsltPath = "/xsl/" + stylesheet;
+            InputStream xsltStream = ToolsShell.class.getResourceAsStream(xsltPath);
+            if (xsltStream == null) {
+                throw new TransformerConfigurationException("XSLT file not found on classpath: " + xsltPath);
+            }
+            Source xslSource = new StreamSource(xsltStream, xsltPath); // Set System ID
+
+            Transformer transformer = transformerFactory.newTransformer(xslSource);
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+            // Set parameters required by standard pica2mods stylesheets
+            transformer.setParameter("WebApplicationBaseURL", pica2ModsConfig.getMycoreUrl());
+            // Add other parameters if needed by your specific stylesheet, e.g., RestrictedAccess
+
             XMLOutputter xmlRecordOutputter = new XMLOutputter(Format.getRawFormat()); // For converting record Element to String for XSLT input
             XMLOutputter finalOutputter = new XMLOutputter(Format.getPrettyFormat()); // For final file output
 
@@ -511,42 +566,8 @@ public class ToolsShell {
         return false;
     }
 
-
-    private Transformer setupTransformer(String stylesheet) throws TransformerConfigurationException {
-        String saxonFactoryClass = "net.sf.saxon.TransformerFactoryImpl";
-        TransformerFactory transformerFactory;
-        try {
-            transformerFactory = TransformerFactory.newInstance(saxonFactoryClass, null);
-            log.info("Using Saxon-HE TransformerFactory: {}", saxonFactoryClass);
-        } catch (TransformerFactoryConfigurationError e) {
-            log.warn("Could not instantiate specific Saxon-HE TransformerFactory ('{}'). Falling back to default JAXP lookup. Error: {}", saxonFactoryClass, e.getMessage());
-            transformerFactory = TransformerFactory.newInstance();
-        }
-
-        try {
-            transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        } catch (TransformerConfigurationException e) {
-            log.warn("Could not set secure processing feature for TransformerFactory: {}", e.getMessage());
-        }
-
-        // Use ClasspathUriResolver for resolving xsl:include, xsl:import etc. within the classpath
-        // Note: This basic resolver doesn't handle dynamic 'document()' calls to fetch external PICA records.
-        transformerFactory.setURIResolver(new ClasspathUriResolver(Map.of())); // Pass empty map as we don't preload PPNs here
-
-        Source xsltSource = loadXsltFromClasspath("/xsl/" + stylesheet);
-        return transformerFactory.newTransformer(xsltSource);
-    }
-
-
-    private Source loadXsltFromClasspath(String xsltPath) throws TransformerConfigurationException {
-        log.debug("Loading XSLT from classpath: {}", xsltPath);
-        InputStream xsltStream = ToolsShell.class.getResourceAsStream(xsltPath);
-        if (xsltStream == null) {
-            log.error("XSLT file not found on classpath: {}", xsltPath);
-            throw new TransformerConfigurationException("XSLT file not found on classpath: " + xsltPath);
-        }
-        return new StreamSource(xsltStream);
-    }
+    // Removed setupTransformer and loadXsltFromClasspath methods as they are no longer used here.
+    // The logic is now integrated into convertIsbnList and convertIssnList using Pica2ModsXSLTURIResolver.
 
     private Properties loadIdMapper(Path idMapperPath) throws IOException {
         Properties props = new Properties();
