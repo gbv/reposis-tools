@@ -44,6 +44,7 @@ import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import de.vzg.reposis.tools.pica.PicaUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -51,11 +52,9 @@ import org.springframework.stereotype.Service;
 public class PicaMyCoReConversionService {
 
     private static final Logger log = LoggerFactory.getLogger(PicaMyCoReConversionService.class);
-    private final MyCoReObjectService myCoReObjectService; // Inject the new service
+    private final MyCoReObjectService myCoReObjectService;
 
     private static final Namespace PICA_XML_NS = Namespace.getNamespace("pica", "info:srw/schema/5/picaXML-v1.0");
-    private static final String PPN_TAG = "003@";
-    private static final String PPN_CODE = "0";
     private static final String XSLT_PARAM_OBJECT_ID = "ObjectID"; // Assumed parameter name
     private static final Namespace TEMP_NS = Namespace.getNamespace("temp", "urn:temp-linking");
     private static final Namespace XLINK_NS = Namespace.getNamespace("xlink", "http://www.w3.org/1999/xlink");
@@ -67,8 +66,6 @@ public class PicaMyCoReConversionService {
     private static final XPathFactory XPATH_FACTORY = XPathFactory.instance();
     private static final XPathExpression<Element> PICA_RECORDS_XPATH = XPATH_FACTORY.compile(
             "//pica:record", Filters.element(), null, PICA_XML_NS);
-    private static final XPathExpression<Element> PPN_XPATH = XPATH_FACTORY.compile(
-            "pica:datafield[@tag='" + PPN_TAG + "']/pica:subfield[@code='" + PPN_CODE + "']", Filters.element(), null, PICA_XML_NS);
     // XPath to find relatedItems needing linking in Pass 2
     private static final XPathExpression<Element> RELATED_ITEM_LINK_XPATH = XPATH_FACTORY.compile(
             "//mods:mods/mods:relatedItem[@temp:relatedPPN or @temp:relatedISBN or @temp:relatedISSN]", Filters.element(), null, MODS_NS, TEMP_NS);
@@ -118,7 +115,8 @@ public class PicaMyCoReConversionService {
         List<Element> records = PICA_RECORDS_XPATH.evaluate(picaDocument);
         log.info("Found {} PICA records in the input file.", records.size());
         for (Element record : records) {
-            String ppn = extractPpnFromRecord(record);
+            // Use the utility method to extract PPN
+            String ppn = PicaUtils.extractPpnFromRecord(record);
             if (ppn != null) {
                 if (ppnToRecordMap.containsKey(ppn)) {
                     log.warn("Duplicate PPN found: {}. Keeping the first occurrence.", ppn);
@@ -128,7 +126,7 @@ public class PicaMyCoReConversionService {
                     log.trace("Stored record for PPN: {}", ppn);
                 }
             } else {
-                log.warn("Record found without a valid PPN (Tag: {}, Code: {}). Skipping.", PPN_TAG, PPN_CODE);
+                log.warn("Record found without a valid PPN. Skipping.");
                 // Log the skipped record XML for debugging
                  XMLOutputter skippedRecordOutputter = new XMLOutputter(Format.getCompactFormat());
                  log.debug("Skipped record XML: {}", skippedRecordOutputter.outputString(record));
@@ -331,25 +329,6 @@ public class PicaMyCoReConversionService {
         }
         return new StreamSource(xsltStream);
     }
-
-    /**
-     * Extracts the PPN (003@ $0) from a JDOM PICA record element.
-     *
-     * @param recordElement The JDOM element for the <record>.
-     * @return The PPN string, or null if not found.
-     */
-    private String extractPpnFromRecord(Element recordElement) {
-        Element ppnElement = PPN_XPATH.evaluateFirst(recordElement);
-        if (ppnElement != null) {
-            String rawPpn = ppnElement.getTextTrim();
-            // Return the raw PPN directly without normalization/check digit removal
-            if (rawPpn != null && !rawPpn.isEmpty()) {
-                return rawPpn;
-            }
-        }
-        return null; // Return null if element not found or text is empty
-    }
-
 
      /**
       * Helper class to manage MyCoRe ID generation based on a template and existing IDs.
