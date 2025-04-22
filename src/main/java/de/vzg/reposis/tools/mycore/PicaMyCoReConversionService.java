@@ -52,6 +52,7 @@ import org.springframework.stereotype.Service;
 public class PicaMyCoReConversionService {
 
     private static final Logger log = LoggerFactory.getLogger(PicaMyCoReConversionService.class);
+
     private final MyCoReObjectService myCoReObjectService;
 
     private static final Namespace PICA_XML_NS = Namespace.getNamespace("pica", "info:srw/schema/5/picaXML-v1.0");
