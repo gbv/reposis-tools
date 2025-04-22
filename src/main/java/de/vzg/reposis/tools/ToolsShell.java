@@ -176,9 +176,13 @@ public class ToolsShell {
                 log.info("Processing ISBN {}/{}: {}", processedCount, isbns.size(), isbn);
 
                 try {
-                    // Check if ISBN is already mapped
-                    if (idMapper.containsKey(isbn)) {
-                        log.info("ISBN {} already mapped to {}. Skipping.", isbn, idMapper.getProperty(isbn));
+                    // Normalize ISBN and create prefixed key
+                    String normalizedIsbn = isbn.replaceAll("[^0-9]", "");
+                    String isbnKey = "isbn:" + normalizedIsbn;
+
+                    // Check if ISBN is already mapped using the prefixed key
+                    if (idMapper.containsKey(isbnKey)) {
+                        log.info("ISBN {} (Key: {}) already mapped to {}. Skipping.", isbn, isbnKey, idMapper.getProperty(isbnKey));
                         skippedCount++;
                         continue;
                     }
@@ -209,25 +213,26 @@ public class ToolsShell {
                         continue;
                     }
                     log.debug("Extracted PPN {} for ISBN {}", ppn, isbn);
+                    String ppnKey = "ppn:" + ppn;
 
                     // Determine MyCoRe ID
                     String mycoreId;
-                    if (idMapper.containsKey(ppn)) {
-                        mycoreId = idMapper.getProperty(ppn);
-                        log.info("PPN {} already mapped to {}. Using existing ID.", ppn, mycoreId);
-                        // Add mapping for the current ISBN as well
-                        if (!idMapper.containsKey(isbn)) {
-                            idMapper.setProperty(isbn, mycoreId);
+                    if (idMapper.containsKey(ppnKey)) {
+                        mycoreId = idMapper.getProperty(ppnKey);
+                        log.info("PPN {} (Key: {}) already mapped to {}. Using existing ID.", ppn, ppnKey, mycoreId);
+                        // Add mapping for the current ISBN as well, using its prefixed key
+                        if (!idMapper.containsKey(isbnKey)) {
+                            idMapper.setProperty(isbnKey, mycoreId);
                             mapperChanged = true;
-                            log.info("Added mapping for ISBN {} -> {}", isbn, mycoreId);
+                            log.info("Added mapping for ISBN {} (Key: {}) -> {}", isbn, isbnKey, mycoreId);
                         }
                     } else {
                         mycoreId = idGenerator.generateNextId();
-                        idMapper.setProperty(ppn, mycoreId);
-                        idMapper.setProperty(isbn, mycoreId); // Map ISBN as well
+                        idMapper.setProperty(ppnKey, mycoreId); // Map PPN with prefix
+                        idMapper.setProperty(isbnKey, mycoreId); // Map ISBN with prefix
                         mapperChanged = true;
                         newIdsGenerated++;
-                        log.info("Generated new MyCoRe ID {} for PPN {} / ISBN {}", mycoreId, ppn, isbn);
+                        log.info("Generated new MyCoRe ID {} for PPN {} (Key: {}) / ISBN {} (Key: {})", mycoreId, ppn, ppnKey, isbn, isbnKey);
                     }
 
                     // Perform XSLT Transformation
@@ -340,9 +345,13 @@ public class ToolsShell {
                 log.info("Processing ISSN {}/{}: {}", processedCount, issns.size(), issn);
 
                 try {
-                    // Check if ISSN is already mapped
-                    if (idMapper.containsKey(issn)) {
-                        log.info("ISSN {} already mapped to {}. Skipping.", issn, idMapper.getProperty(issn));
+                    // Normalize ISSN and create prefixed key
+                    String normalizedIssn = issn.replaceAll("[^0-9]", "");
+                    String issnKey = "issn:" + normalizedIssn;
+
+                    // Check if ISSN is already mapped using the prefixed key
+                    if (idMapper.containsKey(issnKey)) {
+                        log.info("ISSN {} (Key: {}) already mapped to {}. Skipping.", issn, issnKey, idMapper.getProperty(issnKey));
                         skippedCount++;
                         continue;
                     }
@@ -373,25 +382,26 @@ public class ToolsShell {
                         continue;
                     }
                     log.debug("Extracted PPN {} for ISSN {}", ppn, issn);
+                    String ppnKey = "ppn:" + ppn;
 
                     // Determine MyCoRe ID
                     String mycoreId;
-                    if (idMapper.containsKey(ppn)) {
-                        mycoreId = idMapper.getProperty(ppn);
-                        log.info("PPN {} already mapped to {}. Using existing ID.", ppn, mycoreId);
-                        // Add mapping for the current ISSN as well
-                        if (!idMapper.containsKey(issn)) {
-                            idMapper.setProperty(issn, mycoreId);
+                    if (idMapper.containsKey(ppnKey)) {
+                        mycoreId = idMapper.getProperty(ppnKey);
+                        log.info("PPN {} (Key: {}) already mapped to {}. Using existing ID.", ppn, ppnKey, mycoreId);
+                        // Add mapping for the current ISSN as well, using its prefixed key
+                        if (!idMapper.containsKey(issnKey)) {
+                            idMapper.setProperty(issnKey, mycoreId);
                             mapperChanged = true;
-                            log.info("Added mapping for ISSN {} -> {}", issn, mycoreId);
+                            log.info("Added mapping for ISSN {} (Key: {}) -> {}", issn, issnKey, mycoreId);
                         }
                     } else {
                         mycoreId = idGenerator.generateNextId();
-                        idMapper.setProperty(ppn, mycoreId);
-                        idMapper.setProperty(issn, mycoreId); // Map ISSN as well
+                        idMapper.setProperty(ppnKey, mycoreId); // Map PPN with prefix
+                        idMapper.setProperty(issnKey, mycoreId); // Map ISSN with prefix
                         mapperChanged = true;
                         newIdsGenerated++;
-                        log.info("Generated new MyCoRe ID {} for PPN {} / ISSN {}", mycoreId, ppn, issn);
+                        log.info("Generated new MyCoRe ID {} for PPN {} (Key: {}) / ISSN {} (Key: {})", mycoreId, ppn, ppnKey, issn, issnKey);
                     }
 
                     // Perform XSLT Transformation
@@ -559,7 +569,7 @@ public class ToolsShell {
             Files.createDirectories(idMapperPath.getParent());
         }
         try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(idMapperPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING))) {
-            idMapper.store(os, "Identifier (ISBN/PPN) to MyCoRe ID Mapping");
+            idMapper.store(os, "Identifier (isbn:..., issn:..., ppn:...) to MyCoRe ID Mapping");
         }
         log.debug("ID mapper saved successfully.");
     }

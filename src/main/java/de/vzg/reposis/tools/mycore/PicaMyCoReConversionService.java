@@ -180,17 +180,18 @@ public class PicaMyCoReConversionService {
                 log.info("Pass 1: Processed {} records...", recordCount);
             }
 
-            // Get or generate MyCoRe ID
+            // Get or generate MyCoRe ID using prefixed PPN key
+            String ppnKey = "ppn:" + ppn;
             String mycoreId;
-            if (idMapper.containsKey(ppn)) {
-                mycoreId = idMapper.getProperty(ppn);
-                log.debug("Record #{}: Found existing mapping PPN {} -> MyCoRe ID {}", recordCount, ppn, mycoreId);
+            if (idMapper.containsKey(ppnKey)) {
+                mycoreId = idMapper.getProperty(ppnKey);
+                log.debug("Record #{}: Found existing mapping PPN {} (Key: {}) -> MyCoRe ID {}", recordCount, ppn, ppnKey, mycoreId);
             } else {
                 mycoreId = idGenerator.generateNextId();
-                idMapper.setProperty(ppn, mycoreId);
+                idMapper.setProperty(ppnKey, mycoreId); // Use prefixed key
                 mapperChanged = true;
                 newIdsGenerated++;
-                log.info("Record #{}: Generated new mapping PPN {} -> MyCoRe ID {}", recordCount, ppn, mycoreId);
+                log.info("Record #{}: Generated new mapping PPN {} (Key: {}) -> MyCoRe ID {}", recordCount, ppn, ppnKey, mycoreId);
             }
 
             // Perform XSLT Transformation
@@ -245,17 +246,31 @@ public class PicaMyCoReConversionService {
                 // Get the temporary attribute (e.g., relatedPPN)
                 Attribute tempAttr = relatedItem.getAttribute(matchingAttribute, TEMP_NS);
                 relatedItem.removeNamespaceDeclaration(TEMP_NS);
-                String related = tempAttr.getValue();
+                String relatedValue = tempAttr.getValue();
                 relatedItem.removeAttribute(tempAttr); // Remove temporary attribute
 
+                // Determine prefix and normalize value based on the original attribute name
+                String prefix;
+                String normalizedValue;
+                if ("relatedPPN".equals(matchingAttribute)) {
+                    prefix = "ppn:";
+                    normalizedValue = relatedValue; // Assume PPN is already normalized
+                } else if ("relatedISBN".equals(matchingAttribute)) {
+                    prefix = "isbn:";
+                    normalizedValue = relatedValue.replaceAll("[^0-9]", "");
+                } else { // relatedISSN
+                    prefix = "issn:";
+                    normalizedValue = relatedValue.replaceAll("[^0-9]", "");
+                }
+                String relatedKey = prefix + normalizedValue;
 
-                // Find the MyCoRe ID for the related PPN, ISBN, or ISSN
-                String relatedMyCoReId = idMapper.getProperty(related);
+                // Find the MyCoRe ID for the related identifier using the prefixed key
+                String relatedMyCoReId = idMapper.getProperty(relatedKey);
 
                 if (relatedMyCoReId != null) {
                     // Add xlink:href
                     relatedItem.setAttribute("href", relatedMyCoReId, XLINK_NS);
-                    log.trace("Pass 2: Added xlink:href='{}' for related PPN {}", relatedMyCoReId, related);
+                    log.trace("Pass 2: Added xlink:href='{}' for related identifier {} (Key: {})", relatedMyCoReId, relatedValue, relatedKey);
 
                     // Find the related document in our generated map
                     Document relatedDocument = generatedObjects.get(relatedMyCoReId);
@@ -315,8 +330,12 @@ public class PicaMyCoReConversionService {
 
     private void saveIdMapper(Properties idMapper, Path idMapperPath) throws IOException {
         log.info("Saving {} mappings to ID mapper file: {}", idMapper.size(), idMapperPath);
+        // Ensure parent directory exists
+        if (idMapperPath.getParent() != null) {
+            Files.createDirectories(idMapperPath.getParent());
+        }
         try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(idMapperPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING))) {
-            idMapper.store(os, "PICA PPN to MyCoRe ID Mapping");
+            idMapper.store(os, "Identifier (isbn:..., issn:..., ppn:...) to MyCoRe ID Mapping");
         }
         log.debug("ID mapper saved successfully.");
     }
