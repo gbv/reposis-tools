@@ -16,21 +16,23 @@ class SRUServiceTest {
 
     @Test
     void resolvePicaByISBN() {
-        // Test ISBN 9789896890681 should resolve to 663897351
-        var elements = sruService.resolvePicaByISBN("9789896890681");
+        // Test ISBN 978-989-689-068-1 (with hyphens) should resolve to 663897351
+        String testIsbn = "978-989-689-068-1";
+        var elements = sruService.resolvePicaByISBN(testIsbn);
         String expectedPpn = "663897351";
 
         Assertions.assertTrue(elements.stream()
             .map(PicaUtils::extractPpnFromRecord) // Extract PPN using the utility method
             .anyMatch(expectedPpn::equals), // Check if any extracted PPN matches the expected one
-            "Expected PPN " + expectedPpn + " not found in SRU results for ISBN 9789896890681");
+            "Expected PPN " + expectedPpn + " not found in SRU results for ISBN " + testIsbn);
 
     }
 
     @Test
     void resolvePicaByISSN() {
-        // Test ISSN 1078-6279 should resolve to 271596732 and 182561879
-        var elements = sruService.resolvePicaByISSN("1078-6279");
+        // Test ISSN 1078-6279 (with hyphen) should resolve to 271596732 and 182561879
+        String testIssn = "1078-6279";
+        var elements = sruService.resolvePicaByISSN(testIssn);
         List<String> expectedPpns = List.of("271596732", "182561879");
 
         // Extract all PPNs from the results
@@ -41,10 +43,10 @@ class SRUServiceTest {
 
         // Assert that all expected PPNs are present in the actual PPNs
         Assertions.assertTrue(actualPpns.containsAll(expectedPpns),
-            "Expected PPNs " + expectedPpns + " not found or incomplete in SRU results for ISSN 1078-6279. Found: " + actualPpns);
+            "Expected PPNs " + expectedPpns + " not found or incomplete in SRU results for ISSN " + testIssn + ". Found: " + actualPpns);
 
         // Optional: Assert that no unexpected PPNs were found (if the result set should be exact)
         Assertions.assertEquals(expectedPpns.size(), actualPpns.size(),
-            "Found unexpected PPNs for ISSN 1078-6279. Expected: " + expectedPpns + ", Found: " + actualPpns);
+            "Found unexpected PPNs for ISSN " + testIssn + ". Expected: " + expectedPpns + ", Found: " + actualPpns);
     }
 }

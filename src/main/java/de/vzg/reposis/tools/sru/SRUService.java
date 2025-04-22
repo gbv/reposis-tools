@@ -77,8 +77,10 @@ public class SRUService {
     }
 
     public List<Element> resolvePicaByISSN(String issn) {
+        // Normalize ISSN: remove non-numeric characters
+        String normalizedIssn = issn.replaceAll("[^0-9]", "");
         try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-            final HttpGet httpget = new HttpGet(SRU_PICA_BY_ISSN_QUERY.replace("$ISSN$", issn));
+            final HttpGet httpget = new HttpGet(SRU_PICA_BY_ISSN_QUERY.replace("$ISSN$", normalizedIssn));
             return httpclient.execute(httpget, SRUService::extractElementsFromPicaResult);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -86,8 +88,10 @@ public class SRUService {
     }
 
     public List<Element> resolvePicaByISBN(String isbn) {
+        // Normalize ISBN: remove non-numeric characters
+        String normalizedIsbn = isbn.replaceAll("[^0-9]", "");
         try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-            final HttpGet httpget = new HttpGet(SRU_PICA_BY_ISBN_QUERY.replace("$ISBN$", isbn));
+            final HttpGet httpget = new HttpGet(SRU_PICA_BY_ISBN_QUERY.replace("$ISBN$", normalizedIsbn));
             return httpclient.execute(httpget, SRUService::extractElementsFromPicaResult);
         } catch (IOException e) {
             throw new RuntimeException(e);
