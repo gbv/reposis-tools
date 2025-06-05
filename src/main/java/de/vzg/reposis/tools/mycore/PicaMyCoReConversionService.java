@@ -12,15 +12,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import javax.swing.text.AbstractDocument;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
@@ -32,6 +36,7 @@ import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 
 import org.jdom2.Attribute;
+import org.jdom2.Content;
 import org.jdom2.Document;
 import org.jdom2.Element;
 import org.jdom2.JDOMException;
@@ -44,9 +49,10 @@ import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import de.vzg.reposis.tools.pica.PicaUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import de.vzg.reposis.tools.pica.PicaUtils;
 
 @Service
 public class PicaMyCoReConversionService {
@@ -257,35 +263,50 @@ public class PicaMyCoReConversionService {
                     normalizedValue = relatedValue; // Assume PPN is already normalized
                 } else if ("relatedISBN".equals(matchingAttribute)) {
                     prefix = "isbn:";
-                    normalizedValue = relatedValue.replaceAll("[^0-9]", "");
-                } else { // relatedISSN
+                    normalizedValue = relatedValue.replaceAll("[^0-9;]", "");
+                } else if ("relatedISSN".equals(matchingAttribute)) { // relatedISSN
                     prefix = "issn:";
-                    normalizedValue = relatedValue.replaceAll("[^0-9]", "");
+                    normalizedValue = relatedValue.replaceAll("[^0-9;]", "");
+                } else {
+                    log.warn("Unknown related item attribute: {}. Skipping.", matchingAttribute);
+                    continue; // Skip if unknown attribute
                 }
-                String relatedKey = prefix + normalizedValue;
+                List<String> keys = Arrays.stream(normalizedValue.split(";")).toList();
 
+                Optional<String> linkedMyCoReID = keys.stream().map((key) -> {
+                    String relatedKey = prefix + key;
+                    return relatedKey;
+                }).map(idMapper::getProperty)
+                    .filter(Objects::nonNull)
+                    .findFirst();
                 // Find the MyCoRe ID for the related identifier using the prefixed key
-                String relatedMyCoReId = idMapper.getProperty(relatedKey);
 
-                if (relatedMyCoReId != null) {
+                if (linkedMyCoReID.isPresent()) {
                     // Add xlink:href
-                    relatedItem.setAttribute("href", relatedMyCoReId, XLINK_NS);
-                    log.trace("Pass 2: Added xlink:href='{}' for related identifier {} (Key: {})", relatedMyCoReId, relatedValue, relatedKey);
+                    relatedItem.setAttribute("href", linkedMyCoReID.get(), XLINK_NS);
+                    log.trace("Pass 2: Added xlink:href='{}' for related identifier {} (Key: {})", linkedMyCoReID.get(),
+                        relatedValue, keys);
 
                     // Find the related document in our generated map
-                    Document relatedDocument = generatedObjects.get(relatedMyCoReId);
+                    Document relatedDocument = generatedObjects.get(linkedMyCoReID.get());
                     if (relatedDocument != null) {
                         // Extract the mods:mods element from the related document
                         Element relatedModsElement = MYCORE_MODS_XPATH.evaluateFirst(relatedDocument);
                         if (relatedModsElement != null) {
                             // Clone and add the related mods:mods to the current relatedItem
-                            relatedItem.addContent(relatedModsElement.clone());
-                            log.trace("Pass 2: Embedded related mods from {} into {}", relatedMyCoReId, currentMyCoReId);
+                            relatedModsElement.getContent().stream().map(Content::clone).forEach(relatedItem::addContent);
+                            log.trace("Pass 2: Embedded related mods from {} into {}", linkedMyCoReID.get(),
+                                currentMyCoReId);
                             linkedItemsCount++;
                             objectModifiedInPass2 = true;
                         }
+                    } else {
+                        linkedItemsCount++;
+                        objectModifiedInPass2 = true;
                     }
-
+                } else {
+                    log.warn("No MyCoRe ID found for related identifier {}. Skipping.", relatedValue);
+                    relatedItem.detach();
                 }
             } // End loop over itemsToLink
 

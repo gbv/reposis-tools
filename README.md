@@ -6,6 +6,7 @@ This project provides command-line tools for processing and converting library d
 
 *   Convert PICA+ Importformat files to PICA XML.
 *   Convert PICA XML files into individual MyCoRe object XML files, including MODS metadata generation via XSLT and handling of related items.
+*   Fetch PICA records via SRU for ISBN or ISSN lists and convert them to MyCoRe objects.
 
 ## Building the Project
 
@@ -66,4 +67,40 @@ convert-pica-mycore --input <path/to/input.xml> --output <path/to/output/dir> --
 *   `-o`, `--output`: (Required) Path to the directory where the generated MyCoRe object XML files will be saved.
 *   `--id-mapper`: (Required) Path to a properties file used to store and retrieve mappings between PICA PPNs and MyCoRe IDs. If the file exists, it will be loaded; otherwise, it will be created. It is updated if new IDs are generated.
 *   `--id-base`: (Required) A template string used for generating new MyCoRe IDs. It must end with a sequence of digits, which determines the padding for the counter (e.g., `my_archive_mods_00000001`). The tool finds the highest existing ID matching this pattern in the mapper file and starts generating new IDs from the next number.
+*   `-s`, `--stylesheet`: (Required) Path to the XSLT stylesheet used for transforming PICA XML to MODS format. The stylesheet must be accessible in the classpath.
+
+### 3. `convert-isbn-list`
+
+Fetches PICA records for a list of ISBNs via SRU and converts them to MyCoRe objects.
+
+**Usage:**
+
+```bash
+convert-isbn-list --input <path/to/isbn-list.txt> --output <path/to/output/dir> --id-mapper <path/to/idmap.properties> --id-base <prefix_00000000> --stylesheet <classpath/to/stylesheet.xsl>
+```
+
+**Options:**
+
+*   `-i`, `--input`: (Required) Path to the input file containing ISBNs (one per line).
+*   `-o`, `--output`: (Required) Path to the directory where the generated MyCoRe object XML files will be saved.
+*   `--id-mapper`: (Required) Path to a properties file used to store and retrieve mappings between ISBNs, PPNs, and MyCoRe IDs. If the file exists, it will be loaded; otherwise, it will be created. It is updated if new IDs are generated.
+*   `--id-base`: (Required) A template string used for generating new MyCoRe IDs. It must end with a sequence of digits, which determines the padding for the counter (e.g., `my_archive_mods_00000001`).
+*   `-s`, `--stylesheet`: (Required) Path to the XSLT stylesheet used for transforming PICA XML to MODS format. The stylesheet must be accessible in the classpath.
+
+### 4. `convert-issn-list`
+
+Fetches PICA records for a list of ISSNs via SRU and converts them to MyCoRe objects.
+
+**Usage:**
+
+```bash
+convert-issn-list --input <path/to/issn-list.txt> --output <path/to/output/dir> --id-mapper <path/to/idmap.properties> --id-base <prefix_00000000> --stylesheet <classpath/to/stylesheet.xsl>
+```
+
+**Options:**
+
+*   `-i`, `--input`: (Required) Path to the input file containing ISSNs (one per line).
+*   `-o`, `--output`: (Required) Path to the directory where the generated MyCoRe object XML files will be saved.
+*   `--id-mapper`: (Required) Path to a properties file used to store and retrieve mappings between ISSNs, PPNs, and MyCoRe IDs. If the file exists, it will be loaded; otherwise, it will be created. It is updated if new IDs are generated.
+*   `--id-base`: (Required) A template string used for generating new MyCoRe IDs. It must end with a sequence of digits, which determines the padding for the counter (e.g., `my_archive_mods_00000001`).
 *   `-s`, `--stylesheet`: (Required) Path to the XSLT stylesheet used for transforming PICA XML to MODS format. The stylesheet must be accessible in the classpath.
